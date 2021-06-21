@@ -1,25 +1,18 @@
-SUBDIRS := esp8266 host mailstation
+# pkg_add makeesparduino
 
-DOWNLOAD_URL := "https://raw.githubusercontent.com/jcs/WiFiStation/main/release/wifistation.bin"
-VERSION := $(shell grep '#define WIFISTATION_VERSION' esp8266/wifistation.h | sed -e 's/"$$//' -e 's/.*"//')
+# targeting the adafruit feather huzzah esp8266
+BOARD = 	huzzah
 
-all: $(SUBDIRS)
-$(SUBDIRS):
-	$(MAKE) -C $@
+# default of -w supresses all warnings
+COMP_WARNINGS = -Wall -Wextra
 
-clean:
-	for f in $(SUBDIRS); do $(MAKE) -C $$f clean; done
+BUILD_ROOT =	$(CURDIR)/obj
+EXCLUDE_DIRS =	$(BUILD_ROOT)
 
-flash_esp8266: esp8266
-	env UPLOAD_PORT=/dev/cuaU1 $(MAKE) -C esp8266 flash
+ESP_ROOT =	/usr/local/share/arduino/hardware/espressif/esp8266
+ARDUINO_ROOT =	/usr/local/share/arduino
+ARDUINO_LIBS =	${ESP_ROOT}/libraries
 
-release: all
-	cp -f esp8266/obj/wifistation_generic/wifistation.bin release/
-	cp -f mailstation/wsloader.bin release/
-	cp -f mailstation/flashloader.bin release/
-	echo $(VERSION) > release/version.txt
-	stat -f "%z" release/wifistation.bin >> release/version.txt
-	md5 -q release/wifistation.bin >> release/version.txt
-	echo $(DOWNLOAD_URL) >> release/version.txt
+UPLOAD_PORT?=	/dev/cuaU0
 
-.PHONY: all clean $(SUBDIRS)
+include /usr/local/share/makeEspArduino/makeEspArduino.mk
