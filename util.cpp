@@ -77,7 +77,6 @@ void
 led_setup(void)
 {
 	/* setup LEDs */
-	pinMode(pRedLED, OUTPUT);
 	pinMode(pBlueLED, OUTPUT);
 	led_reset();
 }
@@ -85,10 +84,6 @@ led_setup(void)
 void
 error_flash(void)
 {
-	digitalWrite(pRedLED, LOW);
-	digitalWrite(pBlueLED, HIGH);
-	delay(100);
-	digitalWrite(pRedLED, HIGH);
 	digitalWrite(pBlueLED, LOW);
 	delay(100);
 	digitalWrite(pBlueLED, HIGH);
@@ -97,7 +92,6 @@ error_flash(void)
 void
 led_reset(void)
 {
-	digitalWrite(pRedLED, HIGH);
 	digitalWrite(pBlueLED, HIGH);
 }
 

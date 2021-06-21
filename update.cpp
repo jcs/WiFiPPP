@@ -173,7 +173,7 @@ update_process(bool do_update, bool force)
 	outputf("Updating to version %s (%d bytes) from %s\r\n",
 	    version.c_str(), bytesize, (char *)url.c_str());
 
-	Update.begin(bytesize, U_FLASH, pRedLED);
+	Update.begin(bytesize, U_FLASH, pBlueLED);
 
 	Update.setMD5(md5.c_str());
 

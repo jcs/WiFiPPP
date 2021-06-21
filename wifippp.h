@@ -46,9 +46,8 @@ extern struct eeprom_data *settings;
 
 #define MAX_UPLOAD_SIZE (16 * 1024)
 
-/* these are ESP8266 pins */
-const int pRedLED   =  0;
-const int pBlueLED  =  2;
+/* ESP8266 pins */
+const int pBlueLED = 16;
 
 /* wifippp.ino */
 void exec_cmd(char *cmd, size_t len);
