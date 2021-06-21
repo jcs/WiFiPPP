@@ -16,7 +16,7 @@
  */
 
 #include <WiFiClientSecure.h>
-#include "wifistation.h"
+#include "wifippp.h"
 
 #define OTA_VERSION_URL "https://raw.githubusercontent.com/jcs/WiFiStation/main/release/version.txt"
 

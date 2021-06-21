@@ -15,12 +15,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "wifistation.h"
+#include "wifippp.h"
 
 struct eeprom_data *settings;
 
 bool serial_alive = true;
-bool mailstation_alive = false;
 
 void
 setup(void)
@@ -33,16 +32,6 @@ setup(void)
 	if (memcmp(settings->magic, EEPROM_MAGIC_BYTES,
 	    sizeof(settings->magic)) == 0) {
 		/* do migrations if needed based on current revision */
-		switch (settings->revision) {
-		case 1:
-			settings->http_server = 0;
-			/* FALLTHROUGH */
-		case 2:
-			memset(settings->bookmarks, 0,
-			    BOOKMARK_SIZE * NUM_BOOKMARKS);
-			strcpy(settings->bookmarks[0], "klud.ge");
-		}
-
 		if (settings->revision != EEPROM_REVISION) {
 			settings->revision = EEPROM_REVISION;
 			EEPROM.commit();
@@ -63,7 +52,8 @@ setup(void)
 		settings->telnet_tts_w = 64;
 		settings->telnet_tts_h = 15;
 
-		settings->http_server = 0;
+		memset(settings->bookmarks, 0, BOOKMARK_SIZE * NUM_BOOKMARKS);
+		strcpy(settings->bookmarks[0], "klud.ge");
 
 		EEPROM.commit();
 	}
@@ -72,7 +62,6 @@ setup(void)
 	delay(1000);
 
 	led_setup();
-	ms_setup();
 	led_reset();
 
 	WiFi.mode(WIFI_STA);
@@ -82,8 +71,6 @@ setup(void)
 		WiFi.disconnect();
 	else
 		WiFi.begin(settings->wifi_ssid, settings->wifi_pass);
-
-	http_setup();
 }
 
 void
@@ -153,8 +140,6 @@ output(char c)
 		if (c == '\n')
 			Serial.flush();
 	}
-	if (mailstation_alive)
-		ms_write(c);
 
 	return 0;
 }

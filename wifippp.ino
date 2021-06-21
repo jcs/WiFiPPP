@@ -15,8 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "wifistation.h"
-#include "MCP23S18.h"
+#include "wifippp.h"
 
 enum {
 	STATE_AT,
@@ -37,18 +36,9 @@ loop(void)
 	int b = -1, i;
 	long now = millis();
 
-	http_process();
-
 	switch (state) {
 	case STATE_AT:
-		if ((b = ms_read()) != -1) {
-			if (!mailstation_alive) {
-				/* mailstation can only come alive sending 'a' */
-				if (b != 'A' && b != 'a')
-					return;
-				mailstation_alive = true;
-			}
-		} else if (Serial.available() && (b = Serial.read()))
+		if (Serial.available() && (b = Serial.read()))
 			serial_alive = true;
 		else
 			return;
@@ -109,21 +99,7 @@ loop(void)
 	case STATE_TELNET:
 		b = -1;
 
-		if (mailstation_alive && (b = ms_read()) != -1) {
-			if (b == '\e') {
-				/* probably a multi-character command */
-				String seq = String((char)b);
-				unsigned long t = millis();
-
-				while (millis() - t < 50) {
-					if ((b = ms_read()) != -1)
-						seq += (char)b;
-				}
-				telnet_write(seq);
-				plusses = 0;
-				break;
-			}
-		} else if (Serial.available() && (b = Serial.read()))
+		if (Serial.available() && (b = Serial.read()))
 			serial_alive = true;
 
 		if (b == -1 && plus_wait > 0 && (millis() - plus_wait) >= 500) {
@@ -156,8 +132,6 @@ loop(void)
 		}
 
 		if ((b = telnet_read()) != -1) {
-			if (mailstation_alive)
-				ms_write(b);
 			if (serial_alive)
 				Serial.write(b);
 			return;
@@ -173,7 +147,6 @@ loop(void)
 void
 exec_cmd(char *cmd, size_t len)
 {
-	unsigned long t;
 	char *errstr = NULL;
 
 	char *lcmd = (char *)malloc(len + 1);
@@ -315,10 +288,6 @@ exec_cmd(char *cmd, size_t len)
 				outputf("DNS server IP:     %s\r\n",
 				    WiFi.dnsIP().toString().c_str());
 			}
-			outputf("MailStation alive: %s\r\n",
-			    mailstation_alive ? "yes" : "no");
-			outputf("HTTP server:       %s\r\n",
-			    settings->http_server ? "yes" : "no");
 			for (int i = 0; i < NUM_BOOKMARKS; i++) {
 				if (settings->bookmarks[i][0] != '\0')
 					outputf("ATDS bookmark %d:   %s\r\n",
@@ -384,20 +353,7 @@ exec_cmd(char *cmd, size_t len)
 	case '$':
 		/* wifi232 commands */
 
-		if (strcmp(lcmd, "at$http=0") == 0) {
-			/* AT$HTTP=0: disable http server */
-			settings->http_server = 0;
-			http_setup();
-			output("OK\r\n");
-		} else if (strcmp(lcmd, "at$http=1") == 0) {
-			/* AT$HTTP=1: enable http server */
-			settings->http_server = 1;
-			http_setup();
-			output("OK\r\n");
-		} else if (strcmp(lcmd, "at$http?") == 0) {
-			/* AT$HTTP?: show http server setting */
-			outputf("%d\r\nOK\r\n", settings->http_server);
-		} else if (strcmp(lcmd, "at$net=0") == 0) {
+		if (strcmp(lcmd, "at$net=0") == 0) {
 			/* AT$NET=0: disable telnet setting */
 			settings->telnet = 0;
 			output("OK\r\n");
@@ -423,90 +379,6 @@ exec_cmd(char *cmd, size_t len)
 		} else if (strcmp(lcmd, "at$pass?") == 0) {
 			/* AT$PASS?: print wep/wpa passphrase */
 			outputf("%s\r\nOK\r\n", settings->wifi_pass);
-		} else if (strcmp(lcmd, "at$pins?") == 0) {
-			/* AT$PINS?: watch MCP23S18 lines for debugging */
-			uint16_t prev = UINT16_MAX;
-			int i, done = 0;
-			unsigned char b, bit, n, data = 0;
-			extern MCP23S18 mcp;
-
-			ms_datadir(INPUT);
-
-			while (!done) {
-				ESP.wdtFeed();
-
-				/* watch for ^C */
-				if (Serial.available()) {
-					switch (b = Serial.read()) {
-					case 3:
-						/* ^C */
-						done = 1;
-						break;
-					case 'd':
-						Serial.printf("data input\r\n");
-						ms_datadir(INPUT);
-						break;
-					case 'D':
-						Serial.printf("data output\r\n");
-						ms_datadir(OUTPUT);
-						break;
-					case 'L':
-						Serial.printf("linefeed high\r\n");
-						mcp.digitalWrite(pLineFeed, HIGH);
-						break;
-					case 'l':
-						Serial.printf("linefeed low\r\n");
-						mcp.digitalWrite(pLineFeed, LOW);
-						break;
-					case 'S':
-						Serial.printf("strobe high\r\n");
-						mcp.digitalWrite(pStrobe, HIGH);
-						break;
-					case 's':
-						Serial.printf("strobe low\r\n");
-						mcp.digitalWrite(pStrobe, LOW);
-						break;
-					case '0':
-					case '1':
-					case '2':
-					case '3':
-					case '4':
-					case '5':
-					case '6':
-					case '7':
-						n = (b - '0');
-						bit = (data & (1 << n));
-						if (bit)
-							data &= ~(1 << n);
-						else
-							data |= (1 << n);
-						Serial.printf("turning data%d "
-						    "%s (0x%x)\r\n",
-						    n, bit ? "off" : " on",
-						    data);
-						ms_datadir(OUTPUT);
-						ms_writedata(data);
-						break;
-					}
-				}
-
-				uint16_t all = ms_status();
-				if (all != prev) {
-					Serial.print("data: ");
-					for (i = 0; i < 8; i++)
-						Serial.print((all & (1 << i)) ?
-						    '1' : '0');
-
-					Serial.print(" status: ");
-					for (; i < 16; i++)
-						Serial.print((all & (1 << i)) ?
-						    '1' : '0');
-					Serial.print("\r\n");
-					prev = all;
-				}
-			}
-			ms_datadir(INPUT);
-			Serial.print("OK\r\n");
 		} else if (strncmp(lcmd, "at$sb=", 6) == 0) {
 			uint32_t baud = 0;
 			int chars = 0;
@@ -601,83 +473,6 @@ exec_cmd(char *cmd, size_t len)
 		} else if (strcmp(lcmd, "at$update") == 0) {
 			/* AT$UPDATE: do an OTA update */
 			update_process(true, false);
-		} else if (strncmp(lcmd, "at$upload", 9) == 0) {
-			/* AT$UPLOAD: mailstation program loader */
-			unsigned int bytes = 0;
-			unsigned char b;
-
-			if (sscanf(lcmd, "at$upload%u", &bytes) != 1 ||
-			    bytes < 1)
-				goto error;
-
-			if (bytes > (MAX_UPLOAD_SIZE - 1)) {
-				outputf("ERROR size cannot be larger than "
-				    "%d\r\n", (MAX_UPLOAD_SIZE - 1));
-				break;
-			}
-
-			/*
-			 * Prevent output() from sending data to the
-			 * MailStation until we see it on the other side of the
-			 * upload.
-			 */
-			mailstation_alive = false;
-
-			/*
-			 * Send low and high bytes of size.
-			 *
-			 * XXX: Tell the MailStation we're sending one more
-			 * byte than we're receiving from sendload so we can
-			 * include one trailing null byte because sometimes the
-			 * final ack of ms_write will fail to see ack line go
-			 * low before WSLoader jumps to the payload.
-			 * Figure out why that happens and remove this hack.
-			 */
-			if (ms_write((bytes + 1) & 0xff) != 0 ||
-			    ms_write(((bytes + 1) >> 8) & 0xff) != 0) {
-				output("ERROR MailStation failed to receive "
-				    "size\r\n");
-				break;
-			}
-
-			outputf("OK send your %d byte%s\r\n", bytes,
-			    bytes == 1 ? "" : "s");
-
-			t = millis();
-			int written = 0;
-			char cksum = 0;
-			while (bytes > 0) {
-				if (!Serial.available()) {
-					if (millis() - t > 5000)
-						break;
-					yield();
-					continue;
-				}
-
-				b = Serial.read();
-				t = millis();
-
-				if (ms_write(b) != 0)
-					break;
-
-				cksum ^= b;
-				written++;
-				bytes--;
-
-				if (written % 32 == 0)
-					output(cksum);
-			}
-
-			if (bytes == 0) {
-				output(cksum);
-				output("\r\nOK good luck\r\n");
-				/* XXX: trailing dummy byte, ignore response */
-				ms_write(0);
-			} else
-				outputf("\r\nERROR MailStation failed to "
-				    "receive byte with %d byte%s left\r\n",
-				    bytes, (bytes == 1 ? "" : "s"));
-			break;
 		} else
 			goto error;
 		break;

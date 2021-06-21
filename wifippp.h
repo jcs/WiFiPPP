@@ -15,8 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __WIFISTATION_H__
-#define __WIFISTATION_H__
+#ifndef __WIFIPPP_H__
+#define __WIFIPPP_H__
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -27,9 +27,9 @@
 #define EEPROM_SIZE		512
 struct __attribute((__packed__)) eeprom_data {
 	char magic[3];
-#define EEPROM_MAGIC_BYTES	"jcs"
+#define EEPROM_MAGIC_BYTES	"ppp"
 	uint8_t revision;
-#define EEPROM_REVISION		3
+#define EEPROM_REVISION		0
 	char wifi_ssid[64];
 	char wifi_pass[64];
 	uint32_t baud;
@@ -37,7 +37,6 @@ struct __attribute((__packed__)) eeprom_data {
 	uint8_t telnet_tts_w;
 	uint8_t telnet_tts_h;
 	uint8_t telnet;
-	uint8_t http_server;
 #define BOOKMARK_SIZE 64
 #define NUM_BOOKMARKS 3
 	char bookmarks[NUM_BOOKMARKS][BOOKMARK_SIZE];
@@ -51,10 +50,9 @@ extern struct eeprom_data *settings;
 const int pRedLED   =  0;
 const int pBlueLED  =  2;
 
-/* wifistation.ino */
+/* wifippp.ino */
 void exec_cmd(char *cmd, size_t len);
 extern bool serial_alive;
-extern bool mailstation_alive;
 
 /* util.cpp */
 void led_setup(void);
@@ -65,28 +63,6 @@ int output(char c);
 int output(const char *str);
 int output(String str);
 
-/* mailstation.cpp */
-extern const int pData0;
-extern const int pData1;
-extern const int pData2;
-extern const int pData3;
-extern const int pData4;
-extern const int pData5;
-extern const int pData6;
-extern const int pData7;
-extern const int pBusy;
-extern const int pAck;
-extern const int pLineFeed;
-extern const int pStrobe;
-void ms_setup(void);
-void ms_datadir(uint8_t which);
-int ms_read(void);
-uint16_t ms_status(void);
-int ms_write(char c);
-int ms_print(char *string);
-int ms_print(String);
-void ms_writedata(char c);
-
 /* telnet.cpp */
 int telnet_connect(char *host, uint16_t port);
 bool telnet_connected(void);
@@ -94,10 +70,6 @@ void telnet_disconnect(void);
 int telnet_read(void);
 int telnet_write(char b);
 int telnet_write(String s);
-
-/* http.cpp */
-void http_setup(void);
-void http_process(void);
 
 /* update.cpp */
 void update_process(bool do_update, bool force);

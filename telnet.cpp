@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "wifistation.h"
+#include "wifippp.h"
 
 WiFiClient telnet;
 

@@ -1,8 +1,5 @@
 # pkg_add makeesparduino
 
-# targeting the adafruit feather huzzah esp8266
-BOARD = 	huzzah
-
 # default of -w supresses all warnings
 COMP_WARNINGS = -Wall -Wextra
 

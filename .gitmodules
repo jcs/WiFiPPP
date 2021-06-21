@@ -1,0 +1,3 @@
+[submodule "lib/Syslog"]
+	path = lib/Syslog
+	url = https://github.com/arcao/Syslog.git
