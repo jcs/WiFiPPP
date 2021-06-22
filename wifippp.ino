@@ -288,6 +288,8 @@ exec_cmd(char *cmd, size_t len)
 				outputf("DNS server IP:     %s\r\n",
 				    WiFi.dnsIP().toString().c_str());
 			}
+			outputf("Syslog server:     %s\r\n",
+			    settings->syslog_server);
 			for (int i = 0; i < NUM_BOOKMARKS; i++) {
 				if (settings->bookmarks[i][0] != '\0')
 					outputf("ATDS bookmark %d:   %s\r\n",
@@ -429,6 +431,19 @@ exec_cmd(char *cmd, size_t len)
 		} else if (strcmp(lcmd, "at$ssid?") == 0) {
 			/* AT$SSID?: print wifi ssid */
 			outputf("%s\r\nOK\r\n", settings->wifi_ssid);
+		} else if (strncmp(lcmd, "at$syslog=", 10) == 0) {
+			/* AT$SYSLOG=...: set syslog server */
+			memset(settings->syslog_server, 0,
+			    sizeof(settings->syslog_server));
+			strncpy(settings->syslog_server, cmd + 10,
+			    sizeof(settings->syslog_server));
+			output("OK\r\n");
+			syslog_setup();
+			syslog.logf(LOG_INFO, "syslog server changed to %s",
+			    settings->syslog_server);
+		} else if (strcmp(lcmd, "at$syslog?") == 0) {
+			/* AT$SYSLOG?: print syslog server */
+			outputf("%s\r\nOK\r\n", settings->syslog_server);
 		} else if (strncmp(lcmd, "at$tts=", 7) == 0) {
 			/* AT$TTS=: set telnet NAWS */
 			int w, h, chars;

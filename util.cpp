@@ -21,6 +21,9 @@ struct eeprom_data *settings;
 
 bool serial_alive = true;
 
+WiFiUDP syslogUDPClient;
+Syslog syslog(syslogUDPClient, SYSLOG_PROTO_BSD);
+
 void
 setup(void)
 {
@@ -58,6 +61,8 @@ setup(void)
 		EEPROM.commit();
 	}
 
+	syslog_setup();
+
 	Serial.begin(settings->baud);
 	delay(1000);
 
@@ -71,6 +76,15 @@ setup(void)
 		WiFi.disconnect();
 	else
 		WiFi.begin(settings->wifi_ssid, settings->wifi_pass);
+}
+
+void
+syslog_setup(void)
+{
+	if (settings->syslog_server[0])
+		syslog.server(settings->syslog_server, 514);
+	else
+		syslog.server(NULL, 514);
 }
 
 void
