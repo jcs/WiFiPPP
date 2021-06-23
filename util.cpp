@@ -56,7 +56,11 @@ setup(void)
 		settings->telnet_tts_h = 15;
 
 		memset(settings->bookmarks, 0, BOOKMARK_SIZE * NUM_BOOKMARKS);
-		strcpy(settings->bookmarks[0], "klud.ge");
+		strlcpy(settings->bookmarks[0], "klud.ge",
+		    sizeof(settings->bookmarks[0]));
+
+		IP4_ADDR(&settings->ppp_server_ip, 10, 10, 10, 10);
+		IP4_ADDR(&settings->ppp_client_ip, 10, 10, 10, 20);
 
 		EEPROM.commit();
 	}
@@ -85,6 +89,8 @@ syslog_setup(void)
 		syslog.server(settings->syslog_server, 514);
 	else
 		syslog.server(NULL, 514);
+
+	syslog.appName("WiFiPPP");
 }
 
 void

@@ -17,16 +17,12 @@
 
 #include "wifippp.h"
 
-enum {
-	STATE_AT,
-	STATE_TELNET,
-};
+uint8_t state = STATE_AT;
 
 static char curcmd[128] = { 0 };
 static char lastcmd[128] = { 0 };
 static unsigned int curcmdlen = 0;
 static unsigned int lastcmdlen = 0;
-static uint8_t state = STATE_AT;
 static int plusses = 0;
 static unsigned long plus_wait = 0;
 
@@ -141,6 +137,9 @@ loop(void)
 			break;
 		}
 		break;
+	case STATE_PPP:
+		ppp_process();
+		break;
 	}
 }
 
@@ -246,14 +245,28 @@ exec_cmd(char *cmd, size_t len)
 			goto error;
 		}
 
-		outputf("DIALING %s:%d\r\n", host, port);
+		if (strcasecmp(host, "ppp") == 0) {
+			ip4_addr_t t_addr;
+			ip_addr_copy(t_addr, settings->ppp_server_ip);
+			outputf("DIALING %s:PPP\r\n", ipaddr_ntoa(&t_addr));
 
-		if (telnet_connect(host, port) == 0) {
-			outputf("CONNECT %d %s:%d\r\n", settings->baud, host,
-			    port);
-			state = STATE_TELNET;
+			telnet_disconnect();
+			if (ppp_start()) {
+				/* ppp_start outputs CONNECT line, since it has
+				 * to do so before calling ppp_listen */
+				state = STATE_PPP;
+			} else {
+				output("NO ANSWER\r\n");
+			}
 		} else {
-			output("NO ANSWER\r\n");
+			outputf("DIALING %s:%d\r\n", host, port);
+
+			if (telnet_connect(host, port) == 0) {
+				outputf("CONNECT %d %s:%d\r\n", settings->baud,
+				    host, port);
+				state = STATE_TELNET;
+			} else
+				output("NO ANSWER\r\n");
 		}
 
 		free(ohost);
@@ -269,12 +282,16 @@ exec_cmd(char *cmd, size_t len)
 			goto error;
 
 		switch (len == 3 ? '0' : cmd[3]) {
-		case '0':
+		case '0': {
 			/* ATI or ATI0: show settings */
+			ip4_addr_t t_addr;
+
 			outputf("Firmware version:  %s\r\n",
 			    WIFISTATION_VERSION);
+
 			outputf("Serial baud rate:  %d\r\n",
 			    settings->baud);
+
 			outputf("Default WiFi SSID: %s\r\n",
 			    settings->wifi_ssid);
 			outputf("Current WiFi SSID: %s\r\n", WiFi.SSID());
@@ -288,15 +305,26 @@ exec_cmd(char *cmd, size_t len)
 				outputf("DNS server IP:     %s\r\n",
 				    WiFi.dnsIP().toString().c_str());
 			}
+
+			ip_addr_copy(t_addr, settings->ppp_server_ip);
+			outputf("PPP server:        %s\r\n",
+			    ipaddr_ntoa(&t_addr));
+			ip_addr_copy(t_addr, settings->ppp_client_ip);
+			outputf("PPP client:        %s\r\n",
+			    ipaddr_ntoa(&t_addr));
+
 			outputf("Syslog server:     %s\r\n",
 			    settings->syslog_server);
+
 			for (int i = 0; i < NUM_BOOKMARKS; i++) {
 				if (settings->bookmarks[i][0] != '\0')
 					outputf("ATDS bookmark %d:   %s\r\n",
 					    i + 1, settings->bookmarks[i]);
 			}
+
 			output("OK\r\n");
 			break;
+		}
 		case '1': {
 			/* ATI1: scan for wifi networks */
 			int n = WiFi.scanNetworks();
@@ -381,6 +409,38 @@ exec_cmd(char *cmd, size_t len)
 		} else if (strcmp(lcmd, "at$pass?") == 0) {
 			/* AT$PASS?: print wep/wpa passphrase */
 			outputf("%s\r\nOK\r\n", settings->wifi_pass);
+		} else if (strncmp(lcmd, "at$pppc=", 8) == 0) {
+			/* AT$PPPC=...: store PPP client IP */
+			ip4_addr_t t_addr;
+
+			if (!ipaddr_aton(cmd + 8, &t_addr)) {
+				errstr = strdup("invalid IP");
+				goto error;
+			}
+
+			ip_addr_copy(settings->ppp_client_ip, t_addr);
+			output("OK\r\n");
+		} else if (strcmp(lcmd, "at$pppc?") == 0) {
+			/* AT$PPPC?: print PPP client IP */
+			ip4_addr_t t_addr;
+			ip_addr_copy(t_addr, settings->ppp_client_ip);
+			outputf("%s\r\nOK\r\n", ipaddr_ntoa(&t_addr));
+		} else if (strncmp(lcmd, "at$ppps=", 8) == 0) {
+			/* AT$PPPS=...: store PPP server IP */
+			ip4_addr_t t_addr;
+
+			if (!ipaddr_aton(cmd + 8, &t_addr)) {
+				errstr = strdup("invalid IP");
+				goto error;
+			}
+
+			ip_addr_copy(settings->ppp_server_ip, t_addr);
+			output("OK\r\n");
+		} else if (strcmp(lcmd, "at$ppps?") == 0) {
+			/* AT$PPPS?: print PPP server IP */
+			ip4_addr_t t_addr;
+			ip_addr_copy(t_addr, settings->ppp_server_ip);
+			outputf("%s\r\nOK\r\n", ipaddr_ntoa(&t_addr));
 		} else if (strncmp(lcmd, "at$sb=", 6) == 0) {
 			uint32_t baud = 0;
 			int chars = 0;

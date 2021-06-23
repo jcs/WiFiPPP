@@ -43,8 +43,17 @@ struct __attribute((__packed__)) eeprom_data {
 #define NUM_BOOKMARKS 3
 	char bookmarks[NUM_BOOKMARKS][BOOKMARK_SIZE];
 	char syslog_server[64];
+	ip4_addr_t ppp_server_ip;
+	ip4_addr_t ppp_client_ip;
 };
 
+enum {
+	STATE_AT,
+	STATE_TELNET,
+	STATE_PPP,
+};
+
+extern uint8_t state;
 extern struct eeprom_data *settings;
 extern Syslog syslog;
 
@@ -53,19 +62,9 @@ extern Syslog syslog;
 /* ESP8266 pins */
 const int pBlueLED = 16;
 
-/* wifippp.ino */
-void exec_cmd(char *cmd, size_t len);
-extern bool serial_alive;
-
-/* util.cpp */
-void syslog_setup(void);
-void led_setup(void);
-void led_reset(void);
-void error_flash(void);
-size_t outputf(const char *format, ...);
-int output(char c);
-int output(const char *str);
-int output(String str);
+/* ppp.cpp */
+bool ppp_start(void);
+void ppp_process(void);
 
 /* telnet.cpp */
 int telnet_connect(char *host, uint16_t port);
@@ -77,5 +76,19 @@ int telnet_write(String s);
 
 /* update.cpp */
 void update_process(bool do_update, bool force);
+
+/* util.cpp */
+void syslog_setup(void);
+void led_setup(void);
+void led_reset(void);
+void error_flash(void);
+size_t outputf(const char *format, ...);
+int output(char c);
+int output(const char *str);
+int output(String str);
+
+/* wifippp.ino */
+void exec_cmd(char *cmd, size_t len);
+extern bool serial_alive;
 
 #endif
