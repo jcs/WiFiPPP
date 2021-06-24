@@ -26,8 +26,6 @@ public:
 
 	bool done();
 	void process();
-	void verify_method();
-	void fail_close(char code);
 
 	int state;
 	int slot;
@@ -35,6 +33,16 @@ public:
 	WiFiClient server;
 
 private:
+	void verify_method();
+	bool verify_state(int _state);
+	bool verify_version();
+	void handle_request();
+	void fail_close(char code);
+
 	unsigned char buf[64];
+	unsigned char *remote_hostname;
+	ip4_addr_t remote_ip;
+	uint16_t remote_port;
+
 	size_t buflen;
 };
