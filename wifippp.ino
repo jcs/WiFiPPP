@@ -32,6 +32,8 @@ loop(void)
 	int b = -1, i;
 	long now = millis();
 
+	socks_process();
+
 	switch (state) {
 	case STATE_AT:
 		if (Serial.available() && (b = Serial.read()))

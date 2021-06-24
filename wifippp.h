@@ -66,6 +66,10 @@ const int pBlueLED = 16;
 bool ppp_start(void);
 void ppp_process(void);
 
+/* socks.cpp */
+void socks_setup(void);
+void socks_process(void);
+
 /* telnet.cpp */
 int telnet_connect(char *host, uint16_t port);
 bool telnet_connected(void);

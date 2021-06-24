@@ -80,6 +80,8 @@ setup(void)
 		WiFi.disconnect();
 	else
 		WiFi.begin(settings->wifi_ssid, settings->wifi_pass);
+
+	socks_setup();
 }
 
 void
