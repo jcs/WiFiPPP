@@ -18,6 +18,9 @@
 #pragma once
 
 #include <WiFiClient.h>
+#include <WiFiClientSecure.h>
+
+// #define SOCKS_TRACE
 
 class SocksClient : public WiFiClient {
 public:
@@ -27,10 +30,12 @@ public:
 	bool done();
 	void process();
 
+	bool tls() { return _tls; };
 	int state;
 	int slot;
-	WiFiClient client;
-	WiFiClient server;
+	WiFiClient client_in;
+	WiFiClient client_out;
+	WiFiClientSecure client_out_tls;
 
 private:
 	void verify_method();
@@ -38,11 +43,17 @@ private:
 	bool verify_version();
 	void handle_request();
 	void fail_close(char code);
+	void connect();
+	void proxy();
+	void finish();
+
+	void dump_buf(size_t len);
 
 	unsigned char buf[64];
 	unsigned char *remote_hostname;
 	ip4_addr_t remote_ip;
 	uint16_t remote_port;
+	bool _tls;
 
 	size_t buflen;
 };

@@ -20,7 +20,9 @@
 #include <WiFiServer.h>
 #include "SocksClient.h"
 
-WiFiServer socks_server(1080);
+#define SOCKS_PORT 1080
+
+WiFiServer socks_server(SOCKS_PORT);
 
 #define MAX_SOCKS_CLIENTS 5
 SocksClient *socks_clients[MAX_SOCKS_CLIENTS] = { nullptr };
@@ -28,6 +30,7 @@ SocksClient *socks_clients[MAX_SOCKS_CLIENTS] = { nullptr };
 void
 socks_setup(void)
 {
+	socks_server = WiFiServer(settings->ppp_server_ip, SOCKS_PORT);
 	socks_server.begin();
 }
 

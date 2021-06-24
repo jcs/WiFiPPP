@@ -27,6 +27,12 @@ enum {
 	STATE_PROXY,
 };
 
+unsigned int tls_ports[] = {
+	443, /* https */
+	993, /* imaps */
+	995, /* pop3s */
+};
+
 /* https://datatracker.ietf.org/doc/html/rfc1928 */
 
 #define VERSION_SOCKS5		0x05
@@ -53,40 +59,59 @@ enum {
 
 SocksClient::~SocksClient()
 {
+	client_in.stop();
+	if (tls())
+		client_out_tls.stop();
+	else
+		client_out.stop();
 }
 
 SocksClient::SocksClient(int _slot, WiFiClient _client)
-    : slot(_slot), client(_client)
+    : slot(_slot), client_in(_client)
 {
 	state = STATE_INIT;
 
 	memset(buf, 0, sizeof(buf));
 	buflen = 0;
+	remote_port = 0;
+	ip4_addr_set_zero(&remote_ip);
+	_tls = false;
 
+#ifdef SOCKS_TRACE
 	syslog.logf(LOG_DEBUG, "[%d] in socks client init with ip %s", slot,
-	    client.remoteIP().toString().c_str());
+	    client_in.remoteIP().toString().c_str());
+#endif
 }
 
 bool
 SocksClient::done()
 {
-	if (state == STATE_DEAD)
-		return true;
+	return (state == STATE_DEAD);
+}
 
-	if (!client.connected())
-		return true;
-
-	return false;
+void
+SocksClient::finish()
+{
+	state = STATE_DEAD;
 }
 
 void
 SocksClient::process()
 {
-	if (state == STATE_DEAD)
+	switch (state) {
+	case STATE_DEAD:
 		return;
-
-	if (client.available() && sizeof(buf) - buflen > 0)
-		buflen += client.read(buf + buflen, sizeof(buf) - buflen);
+	case STATE_INIT:
+	case STATE_METHOD:
+	case STATE_REQUEST:
+		if (client_in.available() && sizeof(buf) - buflen > 0)
+			buflen += client_in.read(buf + buflen,
+			    sizeof(buf) - buflen);
+		break;
+	default:
+		/* proxy() will do its own buffering */
+		break;
+	}
 
 	switch (state) {
 	case STATE_INIT:
@@ -100,6 +125,12 @@ SocksClient::process()
 		break;
 	case STATE_REQUEST:
 		handle_request();
+		break;
+	case STATE_CONNECT:
+		connect();
+		break;
+	case STATE_PROXY:
+		proxy();
 		break;
 	}
 }
@@ -116,11 +147,9 @@ SocksClient::fail_close(char code)
 		0, 0,
 	};
 
-	client.write(msg, sizeof(msg));
+	client_in.write(msg, sizeof(msg));
 
-	state = STATE_DEAD;
-	client.stop();
-	server.stop();
+	finish();
 }
 
 bool
@@ -172,7 +201,7 @@ SocksClient::verify_method()
 				METHOD_AUTH_NONE,
 			};
 
-			client.write(msg, sizeof(msg));
+			client_in.write(msg, sizeof(msg));
 			state = STATE_REQUEST;
 			buflen = 0;
 			return;
@@ -185,7 +214,7 @@ SocksClient::verify_method()
 		VERSION_SOCKS5,
 		METHOD_AUTH_BAD,
 	};
-	client.write(msg, sizeof(msg));
+	client_in.write(msg, sizeof(msg));
 	fail_close(REPLY_FAIL);
 }
 
@@ -219,8 +248,10 @@ SocksClient::handle_request()
 		remote_port = (uint16_t)((buf[8] & 0xff) << 8) |
 		    (buf[9] & 0xff);
 
+#ifdef SOCKS_TRACE
 		syslog.logf(LOG_DEBUG, "[%d] CONNECT request to IP %s:%d",
 		    slot, ipaddr_ntoa(&remote_ip), remote_port);
+#endif
 
 		break;
 	case REQUEST_ATYP_HOSTNAME: {
@@ -258,11 +289,13 @@ SocksClient::handle_request()
 			return;
 		}
 
+		ip4_addr_set_u32(&remote_ip, resip.v4());
+
+#ifdef SOCKS_TRACE
 		syslog.logf(LOG_DEBUG, "[%d] CONNECT request to hostname "
 		    "%s:%d, resolved to IP %s", slot, remote_hostname,
-		    remote_port, ipaddr_ntoa(resip));
-
-		// e.g., curl --preproxy socks5h://1.2.3.4 ...
+		    remote_port, ipaddr_ntoa(&remote_ip));
+#endif
 		break;
 	}
 	case REQUEST_ATYP_IP6:
@@ -278,13 +311,154 @@ SocksClient::handle_request()
 
 	switch (buf[1]) {
 	case REQUEST_COMMAND_CONNECT:
-		// do_connect
 		state = STATE_CONNECT;
-		break;
+		return;
 	default:
 		syslog.logf(LOG_ERR, "[%d] unsupported command 0x%x",
 		    slot, buf[1]);
 		fail_close(REPLY_BAD_COMMAND);
+		return;
+	}
+}
+
+void
+SocksClient::connect()
+{
+	bool ret;
+
+	_tls = false;
+
+	if (!verify_state(STATE_CONNECT))
+		return;
+
+	if (remote_port == 0 || ip4_addr_isany_val(remote_ip)) {
+		syslog.logf(LOG_ERR, "[%d] bogus ip/port %s:%d",
+		    slot, ipaddr_ntoa(&remote_ip), remote_port);
+		fail_close(REPLY_BAD_ADDRESS);
+		return;
+	}
+
+	for (size_t i = 0; i < sizeof(tls_ports) / sizeof(tls_ports[0]); i++) {
+		if (remote_port == tls_ports[i]) {
+			_tls = true;
+			break;
+		}
+	}
+
+	if (tls()) {
+		client_out_tls.setInsecure();
+		ret = client_out_tls.connect(remote_ip, remote_port);
+	} else
+		ret = client_out.connect(remote_ip, remote_port);
+
+	if (!ret) {
+		syslog.logf(LOG_WARNING, "[%d] connection to %s:%d%s failed",
+		    slot, ipaddr_ntoa(&remote_ip), remote_port,
+		    (tls() ? " (TLS decrypt)" : ""));
+		fail_close(REPLY_CONN_REFUSED);
+		return;
+	}
+
+	unsigned char msg[] = {
+		VERSION_SOCKS5, REPLY_SUCCESS, 0, REQUEST_ATYP_IP,
+		ip4_addr1(&remote_ip), ip4_addr2(&remote_ip),
+		ip4_addr3(&remote_ip), ip4_addr4(&remote_ip),
+		(unsigned char)((remote_port >> 8) & 0xff),
+		(unsigned char)(remote_port & 0xff)
+	};
+
+	buflen = 0;
+	client_in.write(msg, sizeof(msg));
+	state = STATE_PROXY;
+}
+
+#ifdef SOCKS_TRACE
+void
+SocksClient::dump_buf(size_t len)
+{
+	char tbuf[(64 * 3) + 1];
+	size_t tbufl = 0;
+
+	if (len > 64)
+		len = 64;
+
+	for (size_t i = 0; i < len; i++) {
+		sprintf(tbuf + tbufl, " %02x", buf[i]);
+		tbufl += 3;
+	}
+
+	syslog.logf(LOG_DEBUG, "[%d] %s", slot, tbuf);
+}
+#endif
+
+void
+SocksClient::proxy()
+{
+	size_t len;
+
+	if (!verify_state(STATE_PROXY))
+		return;
+
+	/*
+	 * Process buffers before checking connection, we may have read some
+	 * before the client closed.
+	 */
+	while (client_in.available()) {
+		len = client_in.read(buf, sizeof(buf));
+#ifdef SOCKS_TRACE
+		syslog.logf(LOG_DEBUG, "[%d] read %d bytes from client in, "
+		    "sending to client out %s", slot, len,
+		    (tls() ? "tls" : ""));
+		dump_buf(len);
+#endif
+		if (tls())
+			client_out_tls.write(buf, len);
+		else
+			client_out.write(buf, len);
+	}
+
+	if (tls()) {
+		while (client_out_tls.available()) {
+			len = client_out_tls.read(buf, sizeof(buf));
+#ifdef SOCKS_TRACE
+			syslog.logf(LOG_DEBUG, "[%d] read %d bytes from "
+			    "client out tls, sending to client in",
+			    slot, len);
+			dump_buf(len);
+#endif
+			client_in.write(buf, len);
+		}
+	} else {
+		while (client_out.available()) {
+			len = client_out.read(buf, sizeof(buf));
+#ifdef SOCKS_TRACE
+			syslog.logf(LOG_DEBUG, "[%d] read %d bytes from "
+			    "client out, sending to client in", slot, len);
+			dump_buf(len);
+#endif
+			client_in.write(buf, len);
+		}
+	}
+
+	if (!client_in.connected()) {
+#ifdef SOCKS_TRACE
+		syslog.logf(LOG_DEBUG, "[%d] client in closed", slot);
+#endif
+		finish();
+		return;
+	}
+
+	if (tls() && !client_out_tls.connected()) {
+#ifdef SOCKS_TRACE
+		syslog.logf(LOG_DEBUG, "[%d] client out tls closed", slot);
+#endif
+		finish();
+		return;
+	} else if (!tls() && !client_out.connected()) {
+#ifdef SOCKS_TRACE
+		syslog.logf(LOG_DEBUG, "[%d] client out closed", slot);
+#endif
+		finish();
 		return;
 	}
 }

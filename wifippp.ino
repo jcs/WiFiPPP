@@ -438,6 +438,8 @@ exec_cmd(char *cmd, size_t len)
 
 			ip_addr_copy(settings->ppp_server_ip, t_addr);
 			output("OK\r\n");
+			/* re-bind to the new ip */
+			socks_setup();
 		} else if (strcmp(lcmd, "at$ppps?") == 0) {
 			/* AT$PPPS?: print PPP server IP */
 			ip4_addr_t t_addr;
