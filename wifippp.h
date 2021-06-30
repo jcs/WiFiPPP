@@ -45,6 +45,12 @@ struct __attribute((__packed__)) eeprom_data {
 	char syslog_server[64];
 	ip4_addr_t ppp_server_ip;
 	ip4_addr_t ppp_client_ip;
+	uint8_t reg_r;
+#define REG_R_RTS_OFF		1
+#define REG_R_RTS_ON		2
+	uint8_t reg_i;
+#define REG_I_XONXOFF_OFF	0
+#define REG_I_XONXOFF_ON	1
 };
 
 enum {
@@ -59,12 +65,34 @@ extern Syslog syslog;
 
 #define MAX_UPLOAD_SIZE (16 * 1024)
 
-/* ESP8266 pins */
-const int pBlueLED = 16;
+/* ESP8266 pins for Adafruit Huzzah */
+const int pRedLED  = 0;
+const int pBlueLED = 2;
+const int pRI      = 0;
+const int pDCD     = 4;
+const int pDTR     = 5;
+const int pDSR     = 12;
+const int pRTS     = 13;
+const int pCTS     = 14;
 
 /* ppp.cpp */
 bool ppp_start(void);
 void ppp_process(void);
+
+/* serial.cpp */
+void serial_setup(void);
+void serial_begin(int baud);
+uint8_t serial_read(void);
+bool serial_available(void);
+int16_t serial_peek(void);
+void serial_write(char b);
+void serial_flush(void);
+void serial_cts(bool clear);
+void serial_dcd(bool carrier);
+void serial_dsr(bool ready);
+bool serial_dtr(void);
+void serial_ri(bool ringing);
+bool serial_rts(void);
 
 /* socks.cpp */
 void socks_setup(void);

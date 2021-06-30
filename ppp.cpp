@@ -49,6 +49,7 @@ ppp_start(void)
 	ppp_set_ipcp_hisaddr(_ppp, &c_addr); /* or hers! */
 
 	outputf("CONNECT %d %s:PPP\r\n", settings->baud, ipaddr_ntoa(&s_addr));
+	serial_dcd(true);
 
 	ppp_listen(_ppp);
 
@@ -157,6 +158,7 @@ ppp_status_cb(ppp_pcb *pcb, int err, __attribute__((unused)) void *ctx)
 		ppp_free(_ppp);
 		_ppp = NULL;
 		state = STATE_AT;
+		serial_dcd(false);
 		outputf("\r\nNO CARRIER\r\n");
 		return;
 	}

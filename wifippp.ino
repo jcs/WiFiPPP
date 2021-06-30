@@ -36,7 +36,7 @@ loop(void)
 
 	switch (state) {
 	case STATE_AT:
-		if (Serial.available() && (b = Serial.read()))
+		if (serial_available() && (b = serial_read()))
 			serial_alive = true;
 		else
 			return;
@@ -63,12 +63,12 @@ loop(void)
 				/* if sender is using \r\n, ignore the \n */
 				now = millis();
 				while (millis() - now < 10) {
-					int b2 = Serial.peek();
+					int b2 = serial_peek();
 					if (b2 == -1)
 						continue;
 					else if (b2 == '\n') {
 						/* this is a \r\n, ignore \n */
-						Serial.read();
+						serial_read();
 						break;
 					} else {
 						/* some other data */
@@ -97,7 +97,7 @@ loop(void)
 	case STATE_TELNET:
 		b = -1;
 
-		if (Serial.available() && (b = Serial.read()))
+		if (serial_available() && (b = serial_read()))
 			serial_alive = true;
 
 		if (b == -1 && plus_wait > 0 && (millis() - plus_wait) >= 500) {
@@ -131,7 +131,7 @@ loop(void)
 
 		if ((b = telnet_read()) != -1) {
 			if (serial_alive)
-				Serial.write(b);
+				serial_write(b);
 			return;
 		} else if (!telnet_connected()) {
 			output("\r\nNO CARRIER\r\n");
@@ -470,8 +470,8 @@ exec_cmd(char *cmd, size_t len)
 				settings->baud = baud;
 				outputf("OK switching to %d\r\n",
 				    settings->baud);
-				Serial.flush();
-				Serial.begin(settings->baud);
+				serial_flush();
+				serial_begin(settings->baud);
 				break;
 			default:
 				output("ERROR unsupported baud rate\r\n");

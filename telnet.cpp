@@ -100,6 +100,7 @@ telnet_connect(char *host, uint16_t port)
 
 	telnet_state = TELNET_STATE_CONNECTED;
 	telnet_echoing = true;
+	serial_dcd(true);
 	return 0;
 }
 
@@ -110,8 +111,8 @@ telnet_connected(void)
 		return false;
 
 	if (!telnet.connected()) {
-		telnet.stop();
-		telnet_state = TELNET_STATE_DISCONNECTED;
+		if (telnet_state != TELNET_STATE_DISCONNECTED)
+			telnet_disconnect();
 		return false;
 	}
 
@@ -123,6 +124,7 @@ telnet_disconnect(void)
 {
 	telnet.stop();
 	telnet_state = TELNET_STATE_DISCONNECTED;
+	serial_dcd(false);
 }
 
 void

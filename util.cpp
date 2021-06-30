@@ -19,8 +19,6 @@
 
 struct eeprom_data *settings;
 
-bool serial_alive = true;
-
 WiFiUDP syslogUDPClient;
 Syslog syslog(syslogUDPClient, SYSLOG_PROTO_BSD);
 
@@ -48,6 +46,10 @@ setup(void)
 
 		settings->baud = 115200;
 
+		/* enable hardware flow control, disable software */
+		settings->reg_r = REG_R_RTS_ON;
+		settings->reg_i = REG_I_XONXOFF_OFF;
+
 		settings->telnet = 1;
 		strlcpy(settings->telnet_tterm, "ansi",
 		    sizeof(settings->telnet_tterm));
@@ -67,8 +69,7 @@ setup(void)
 
 	syslog_setup();
 
-	Serial.begin(settings->baud);
-	delay(1000);
+	serial_setup();
 
 	led_setup();
 	led_reset();
@@ -82,6 +83,9 @@ setup(void)
 		WiFi.begin(settings->wifi_ssid, settings->wifi_pass);
 
 	socks_setup();
+
+	serial_dsr(true);
+	serial_cts(true);
 }
 
 void
@@ -99,6 +103,7 @@ void
 led_setup(void)
 {
 	/* setup LEDs */
+	pinMode(pRedLED, OUTPUT);
 	pinMode(pBlueLED, OUTPUT);
 	led_reset();
 }
@@ -106,14 +111,15 @@ led_setup(void)
 void
 error_flash(void)
 {
-	digitalWrite(pBlueLED, LOW);
+	digitalWrite(pRedLED, LOW);
 	delay(100);
-	digitalWrite(pBlueLED, HIGH);
+	digitalWrite(pRedLED, HIGH);
 }
 
 void
 led_reset(void)
 {
+	digitalWrite(pRedLED, HIGH);
 	digitalWrite(pBlueLED, HIGH);
 }
 
@@ -152,9 +158,9 @@ int
 output(char c)
 {
 	if (serial_alive) {
-		Serial.write(c);
+		serial_write(c);
 		if (c == '\n')
-			Serial.flush();
+			serial_flush();
 	}
 
 	return 0;
