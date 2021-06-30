@@ -44,7 +44,8 @@ setup(void)
 		    sizeof(settings->magic));
 		settings->revision = EEPROM_REVISION;
 
-		settings->baud = 115200;
+		/* a slow default for old computers */
+		settings->baud = 300;
 
 		/* enable hardware flow control, disable software */
 		settings->reg_r = REG_R_RTS_ON;
