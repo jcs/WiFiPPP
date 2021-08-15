@@ -83,6 +83,25 @@ serial_peek(void)
 	return Serial.peek();
 }
 
+long
+serial_autobaud(void)
+{
+	Serial.begin(115200);
+
+	unsigned long baud = Serial.detectBaudrate(30000);
+	if (baud)
+		syslog.logf(LOG_INFO, "auto-detected baud rate of %lu", baud);
+	else {
+		syslog.logf(LOG_INFO, "couldn't auto-detect baud rate, "
+		    "using %d", settings->baud);
+		baud = settings->baud;
+	}
+
+	Serial.begin(baud);
+
+	return baud;
+}
+
 /* Clear to Send */
 void
 serial_cts(bool clear)

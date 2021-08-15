@@ -36,6 +36,16 @@ loop(void)
 
 	switch (state) {
 	case STATE_AT:
+		if (!serial_dtr()) {
+			dtr = false;
+			return;
+		}
+
+		if (!dtr) {
+			serial_autobaud();
+			dtr = true;
+		}
+
 		if (serial_available() && (b = serial_read()))
 			serial_alive = true;
 		else

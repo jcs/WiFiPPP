@@ -87,6 +87,7 @@ bool serial_available(void);
 int16_t serial_peek(void);
 void serial_write(char b);
 void serial_flush(void);
+long serial_autobaud(void);
 void serial_cts(bool clear);
 void serial_dcd(bool carrier);
 void serial_dsr(bool ready);
