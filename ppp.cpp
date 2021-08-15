@@ -62,7 +62,12 @@ u32_t
 ppp_output_cb(__attribute__((unused)) ppp_pcb *pcb, u8_t *data, u32_t len,
     __attribute__((unused)) void *ctx)
 {
-	return Serial.write(data, len);
+	u32_t i;
+
+	for (i = 0; i < len; i++)
+		serial_write(data[i]);
+
+	return len;
 }
 
 void
