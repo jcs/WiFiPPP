@@ -46,6 +46,7 @@ setup(void)
 
 		settings->echo = 1;
 		settings->quiet = 0;
+		settings->verbal = 1;
 
 		/* a slow default for old computers */
 		settings->baud = 300;

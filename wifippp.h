@@ -53,6 +53,7 @@ struct __attribute((__packed__)) eeprom_data {
 #define REG_I_XONXOFF_ON	1
 	uint8_t echo;
 	uint8_t quiet;
+	uint8_t verbal;
 };
 
 enum {
