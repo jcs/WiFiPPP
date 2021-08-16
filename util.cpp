@@ -44,6 +44,9 @@ setup(void)
 		    sizeof(settings->magic));
 		settings->revision = EEPROM_REVISION;
 
+		settings->echo = 1;
+		settings->quiet = 0;
+
 		/* a slow default for old computers */
 		settings->baud = 300;
 

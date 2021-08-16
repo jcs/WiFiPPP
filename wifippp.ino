@@ -25,6 +25,7 @@ static unsigned int curcmdlen = 0;
 static unsigned int lastcmdlen = 0;
 static int plusses = 0;
 static unsigned long plus_wait = 0;
+static bool dtr = false;
 
 void
 loop(void)
@@ -55,13 +56,15 @@ loop(void)
 		if (curcmdlen == 0 && (b != 'A' && b != 'a')) {
 			return;
 		} else if (curcmdlen == 1 && b == '/') {
-			output("/\r\n");
+			if (settings->echo)
+				output("/\r");
 			curcmd[0] = '\0';
 			curcmdlen = 0;
 			exec_cmd((char *)&lastcmd, lastcmdlen);
 			break;
 		} else if (curcmdlen == 1 && (b != 'T' && b != 't')) {
-			output("\b \b");
+			if (settings->echo)
+				output("\b \b");
 			curcmdlen = 0;
 			return;
 		}
@@ -86,7 +89,7 @@ loop(void)
 					}
 				}
 			}
-			output("\r\n");
+			output("\r");
 			curcmd[curcmdlen] = '\0';
 			exec_cmd((char *)&curcmd, curcmdlen);
 			curcmd[0] = '\0';
@@ -95,13 +98,15 @@ loop(void)
 		case '\b':
 		case 127:
 			if (curcmdlen) {
-				output("\b \b");
+				if (settings->echo)
+					output("\b \b");
 				curcmdlen--;
 			}
 			break;
 		default:
 			curcmd[curcmdlen++] = b;
-			output(b);
+			if (settings->echo)
+				output(b);
 		}
 		break;
 	case STATE_TELNET:
@@ -114,7 +119,8 @@ loop(void)
 			/* received no input within 500ms of a plus */
 			if (plusses >= 3) {
 				state = STATE_AT;
-				output("\r\nOK\r\n");
+				if (!settings->quiet)
+					outputf("\nOK\r\n");
 			} else {
 				/* cancel, flush any plus signs received */
 				for (i = 0; i < plusses; i++)
@@ -144,7 +150,8 @@ loop(void)
 				serial_write(b);
 			return;
 		} else if (!telnet_connected()) {
-			output("\r\nNO CARRIER\r\n");
+			if (!settings->quiet)
+				output("\r\nNO CARRIER\r\n");
 			state = STATE_AT;
 			break;
 		}
@@ -159,8 +166,12 @@ void
 exec_cmd(char *cmd, size_t len)
 {
 	char *errstr = NULL;
+	char *lcmd, *olcmd;
+	char cmd_char;
+	uint8_t cmd_num = 0;
+	bool did_nl = false;
 
-	char *lcmd = (char *)malloc(len + 1);
+	lcmd = olcmd = (char *)malloc(len + 1);
 	if (lcmd == NULL) {
 		outputf("ERROR malloc %zu failed\r\n", len);
 		return;
@@ -170,6 +181,7 @@ exec_cmd(char *cmd, size_t len)
 		lcmd[i] = tolower(cmd[i]);
 	lcmd[len] = '\0';
 
+	/* shouldn't be able to get here, but just in case */
 	if (len < 2 || lcmd[0] != 'a' || lcmd[1] != 't') {
 		errstr = strdup("not an AT command");
 		goto error;
@@ -178,33 +190,58 @@ exec_cmd(char *cmd, size_t len)
 	memcpy(&lastcmd, lcmd, len + 1);
 	lastcmdlen = len;
 
-	if (len == 2) {
-		output("OK\r\n");
-		return;
+	/* strip AT */
+	cmd += 2;
+	lcmd += 2;
+	len -= 2;
+
+	/* whether we printed a newline in our response */
+	did_nl = false;
+
+parse_cmd:
+	if (lcmd[0] == '\0')
+		goto done_parsing;
+
+	/* remove command character */
+	cmd_char = lcmd[0];
+	len--;
+	cmd++;
+	lcmd++;
+
+	/* find optional single digit after command, defaulting to 0 */
+	cmd_num = 0;
+	if (cmd[0] >= '0' && cmd[0] <= '9') {
+		if (cmd[1] >= '0' && cmd[1] <= '9')
+			/* nothing uses more than 1 digit */
+			goto error;
+		cmd_num = cmd[0] - '0';
+		len--;
+		cmd++;
+		lcmd++;
 	}
 
-	switch (lcmd[2]) {
+	switch (cmd_char) {
 	case 'd': {
 		char *host, *ohost, *bookmark;
 		uint16_t port;
 		int chars;
 		int index;
 
-		if (len < 5)
+		if (len < 2)
 			goto error;
 
-		switch (lcmd[3]) {
+		switch (lcmd[0]) {
 		case 't':
 			/* ATDT: dial a host */
 			host = ohost = (char *)malloc(len);
 			if (host == NULL)
 				goto error;
 			host[0] = '\0';
-			if (sscanf(lcmd, "atdt%[^:]:%hu%n", host, &port,
+			if (sscanf(lcmd, "t%[^:]:%hu%n", host, &port,
 			    &chars) == 2 && chars > 0)
 				/* matched host:port */
 				;
-			else if (sscanf(lcmd, "atdt%[^:]%n", host, &chars) == 1
+			else if (sscanf(lcmd, "t%[^:]%n", host, &chars) == 1
 			    && chars > 0)
 				/* host without port */
 				port = 23;
@@ -215,7 +252,7 @@ exec_cmd(char *cmd, size_t len)
 			break;
 		case 's':
 			/* ATDS: dial a stored host */
-			if (sscanf(lcmd, "atds%d", &index) != 1)
+			if (sscanf(lcmd, "s%d", &index) != 1)
 				goto error;
 
 			if (index < 1 || index > NUM_BOOKMARKS) {
@@ -257,52 +294,80 @@ exec_cmd(char *cmd, size_t len)
 			goto error;
 		}
 
+		/* no commands can follow */
+		len = 0;
+
 		if (strcasecmp(host, "ppp") == 0) {
 			ip4_addr_t t_addr;
 			ip_addr_copy(t_addr, settings->ppp_server_ip);
-			outputf("DIALING %s:PPP\r\n", ipaddr_ntoa(&t_addr));
+			if (!settings->quiet)
+				outputf("\nDIALING %s:PPP\r\n",
+				    ipaddr_ntoa(&t_addr));
 
 			telnet_disconnect();
-			if (ppp_start()) {
+			if (ppp_start())
 				/* ppp_start outputs CONNECT line, since it has
 				 * to do so before calling ppp_listen */
 				state = STATE_PPP;
-			} else {
+			else if (!settings->quiet)
 				output("NO ANSWER\r\n");
-			}
 		} else {
-			outputf("DIALING %s:%d\r\n", host, port);
+			if (!settings->quiet)
+				outputf("\nDIALING %s:%d\r\n", host, port);
 
 			if (telnet_connect(host, port) == 0) {
-				outputf("CONNECT %d %s:%d\r\n", settings->baud,
-				    host, port);
+				if (!settings->quiet)
+					outputf("CONNECT %d %s:%d\r\n",
+					    settings->baud, host, port);
 				state = STATE_TELNET;
-			} else
-				output("NO ANSWER\r\n");
+			} else if (!settings->quiet)
+				output("\nNO ANSWER\r\n");
 		}
 
-		free(ohost);
+		if (!settings->quiet)
+			did_nl = true;
 
+		free(ohost);
 		break;
 	}
+	case 'e':
+		/* ATE/ATE0 or ATE1: disable or enable echo */
+		switch (cmd_num) {
+		case 0:
+			settings->echo = 0;
+			break;
+		case 1:
+			settings->echo = 1;
+			break;
+		default:
+			goto error;
+		}
+		break;
 	case 'h':
-		telnet_disconnect();
-		output("OK\r\n");
+		/* ATH/ATH0: hangup */
+		switch (cmd_num) {
+		case 0:
+			telnet_disconnect();
+			break;
+		default:
+			goto error;
+		}
 		break;
 	case 'i':
-		if (len > 4)
-			goto error;
-
-		switch (len == 3 ? '0' : cmd[3]) {
-		case '0': {
-			/* ATI or ATI0: show settings */
+		/* ATI/ATI#: show information pages */
+		switch (cmd_num) {
+		case 0: {
+			/* ATI/ATI0: show settings */
 			ip4_addr_t t_addr;
+
+			output("\n");
 
 			outputf("Firmware version:  %s\r\n",
 			    WIFISTATION_VERSION);
 
-			outputf("Serial baud rate:  %d\r\n",
-			    settings->baud);
+			outputf("Default baud rate: %d\r\n", settings->baud);
+			outputf("Current baud rate: %d\r\n",
+			    Serial.baudRate());
 
 			outputf("Default WiFi SSID: %s\r\n",
 			    settings->wifi_ssid);
@@ -334,12 +399,14 @@ exec_cmd(char *cmd, size_t len)
 					    i + 1, settings->bookmarks[i]);
 			}
 
-			output("OK\r\n");
+			did_nl = true;
 			break;
 		}
-		case '1': {
+		case 1: {
 			/* ATI1: scan for wifi networks */
 			int n = WiFi.scanNetworks();
+
+			output("\n");
 
 			for (int i = 0; i < n; i++) {
 				outputf("%02d: %s (chan %d, %ddBm, ",
@@ -371,96 +438,123 @@ exec_cmd(char *cmd, size_t len)
 
 				output(")\r\n");
 			}
-			output("OK\r\n");
+			did_nl = true;
 			break;
 		}
-		case '3':
+		case 3:
 			/* ATI3: show version */
-			outputf("%s\r\nOK\r\n", WIFISTATION_VERSION);
+			outputf("\n%s\r\n", WIFISTATION_VERSION);
+			did_nl = true;
 			break;
 		default:
 			goto error;
 		}
 		break;
 	case 'o':
-		if (telnet_connected())
-			state = STATE_TELNET;
-		else
+		/* ATO: go back online after a +++ */
+		switch (cmd_num) {
+		case 0:
+			if (telnet_connected())
+				state = STATE_TELNET;
+			else
+				goto error;
+			break;
+		default:
 			goto error;
+		}
+		break;
+	case 'q':
+		/* ATQ/ATQ0 or ATQ1: disable or enable quiet */
+		switch (cmd_num) {
+		case 0:
+			settings->quiet = 0;
+			break;
+		case 1:
+			settings->quiet = 1;
+			break;
+		default:
+			goto error;
+		}
 		break;
 	case 'z':
-		output("OK\r\n");
-		ESP.restart();
+		/* ATZ/ATZ0: restart */
+		switch (cmd_num) {
+		case 0:
+			if (!settings->quiet)
+				output("\nOK\r\n");
+			ESP.restart();
+			/* NOTREACHED */
+		default:
+			goto error;
+		}
 		break;
 	case '$':
-		/* wifi232 commands */
-
-		if (strcmp(lcmd, "at$net=0") == 0) {
+		/* wifi232 commands, all consume the rest of the input string */
+		if (strcmp(lcmd, "net=0") == 0) {
 			/* AT$NET=0: disable telnet setting */
 			settings->telnet = 0;
-			output("OK\r\n");
-		} else if (strcmp(lcmd, "at$net=1") == 0) {
+		} else if (strcmp(lcmd, "net=1") == 0) {
 			/* AT$NET=1: enable telnet setting */
 			settings->telnet = 1;
-			output("OK\r\n");
-		} else if (strcmp(lcmd, "at$net?") == 0) {
+		} else if (strcmp(lcmd, "net?") == 0) {
 			/* AT$NET?: show telnet setting */
-			outputf("%d\r\nOK\r\n", settings->telnet);
-		} else if (strncmp(lcmd, "at$pass=", 8) == 0) {
+			outputf("\n%d\r\n", settings->telnet);
+			did_nl = true;
+		} else if (strncmp(lcmd, "pass=", 8) == 0) {
 			/* AT$PASS=...: store wep/wpa passphrase */
 			memset(settings->wifi_pass, 0,
 			    sizeof(settings->wifi_pass));
-			strncpy(settings->wifi_pass, cmd + 8,
+			strncpy(settings->wifi_pass, cmd + 5,
 			    sizeof(settings->wifi_pass));
-			output("OK\r\n");
 
 			WiFi.disconnect();
 			if (settings->wifi_ssid[0])
 				WiFi.begin(settings->wifi_ssid,
 				    settings->wifi_pass);
-		} else if (strcmp(lcmd, "at$pass?") == 0) {
+		} else if (strcmp(lcmd, "pass?") == 0) {
 			/* AT$PASS?: print wep/wpa passphrase */
-			outputf("%s\r\nOK\r\n", settings->wifi_pass);
-		} else if (strncmp(lcmd, "at$pppc=", 8) == 0) {
+			outputf("\n%s\r\n", settings->wifi_pass);
+			did_nl = true;
+		} else if (strncmp(lcmd, "pppc=", 5) == 0) {
 			/* AT$PPPC=...: store PPP client IP */
 			ip4_addr_t t_addr;
 
-			if (!ipaddr_aton(cmd + 8, &t_addr)) {
+			if (!ipaddr_aton(cmd + 5, &t_addr)) {
 				errstr = strdup("invalid IP");
 				goto error;
 			}
 
 			ip_addr_copy(settings->ppp_client_ip, t_addr);
-			output("OK\r\n");
-		} else if (strcmp(lcmd, "at$pppc?") == 0) {
+		} else if (strcmp(lcmd, "pppc?") == 0) {
 			/* AT$PPPC?: print PPP client IP */
 			ip4_addr_t t_addr;
 			ip_addr_copy(t_addr, settings->ppp_client_ip);
-			outputf("%s\r\nOK\r\n", ipaddr_ntoa(&t_addr));
-		} else if (strncmp(lcmd, "at$ppps=", 8) == 0) {
+			outputf("\n%s\r\n", ipaddr_ntoa(&t_addr));
+			did_nl = true;
+		} else if (strncmp(lcmd, "ppps=", 5) == 0) {
 			/* AT$PPPS=...: store PPP server IP */
 			ip4_addr_t t_addr;
 
-			if (!ipaddr_aton(cmd + 8, &t_addr)) {
+			if (!ipaddr_aton(cmd + 5, &t_addr)) {
 				errstr = strdup("invalid IP");
 				goto error;
 			}
 
 			ip_addr_copy(settings->ppp_server_ip, t_addr);
-			output("OK\r\n");
 			/* re-bind to the new ip */
 			socks_setup();
-		} else if (strcmp(lcmd, "at$ppps?") == 0) {
+		} else if (strcmp(lcmd, "ppps?") == 0) {
 			/* AT$PPPS?: print PPP server IP */
 			ip4_addr_t t_addr;
 			ip_addr_copy(t_addr, settings->ppp_server_ip);
-			outputf("%s\r\nOK\r\n", ipaddr_ntoa(&t_addr));
-		} else if (strncmp(lcmd, "at$sb=", 6) == 0) {
+			outputf("\n%s\r\n", ipaddr_ntoa(&t_addr));
+			did_nl = true;
+		} else if (strncmp(lcmd, "sb=", 3) == 0) {
 			uint32_t baud = 0;
 			int chars = 0;
 
 			/* AT$SB=...: set baud rate */
-			if (sscanf(lcmd, "at$sb=%d%n", &baud, &chars) != 1 ||
+			if (sscanf(lcmd, "sb=%d%n", &baud, &chars) != 1 ||
 		    	    chars == 0) {
 				output("ERROR invalid baud rate\r\n");
 				break;
@@ -478,8 +572,9 @@ exec_cmd(char *cmd, size_t len)
 			case 57600:
 			case 115200:
 				settings->baud = baud;
-				outputf("OK switching to %d\r\n",
-				    settings->baud);
+				if (!settings->quiet)
+					outputf("\nOK switching to %d\r\n",
+					    settings->baud);
 				serial_flush();
 				serial_begin(settings->baud);
 				break;
@@ -487,41 +582,42 @@ exec_cmd(char *cmd, size_t len)
 				output("ERROR unsupported baud rate\r\n");
 				break;
 			}
-		} else if (strcmp(lcmd, "at$sb?") == 0) {
+		} else if (strcmp(lcmd, "sb?") == 0) {
 			/* AT$SB?: print baud rate */
-			outputf("%d\r\nOK\r\n", settings->baud);
-		} else if (strncmp(lcmd, "at$ssid=", 8) == 0) {
+			outputf("\n%d\r\n", settings->baud);
+			did_nl = true;
+		} else if (strncmp(lcmd, "ssid=", 5) == 0) {
 			/* AT$SSID=...: set wifi ssid */
 			memset(settings->wifi_ssid, 0,
 			    sizeof(settings->wifi_ssid));
-			strncpy(settings->wifi_ssid, cmd + 8,
+			strncpy(settings->wifi_ssid, cmd + 5,
 			    sizeof(settings->wifi_ssid));
-			output("OK\r\n");
 
 			WiFi.disconnect();
 			if (settings->wifi_ssid[0])
 				WiFi.begin(settings->wifi_ssid,
 				    settings->wifi_pass);
-		} else if (strcmp(lcmd, "at$ssid?") == 0) {
+		} else if (strcmp(lcmd, "ssid?") == 0) {
 			/* AT$SSID?: print wifi ssid */
-			outputf("%s\r\nOK\r\n", settings->wifi_ssid);
-		} else if (strncmp(lcmd, "at$syslog=", 10) == 0) {
+			outputf("\n%s\r\n", settings->wifi_ssid);
+			did_nl = true;
+		} else if (strncmp(lcmd, "syslog=", 7) == 0) {
 			/* AT$SYSLOG=...: set syslog server */
 			memset(settings->syslog_server, 0,
 			    sizeof(settings->syslog_server));
-			strncpy(settings->syslog_server, cmd + 10,
+			strncpy(settings->syslog_server, cmd + 7,
 			    sizeof(settings->syslog_server));
-			output("OK\r\n");
 			syslog_setup();
 			syslog.logf(LOG_INFO, "syslog server changed to %s",
 			    settings->syslog_server);
-		} else if (strcmp(lcmd, "at$syslog?") == 0) {
+		} else if (strcmp(lcmd, "syslog?") == 0) {
 			/* AT$SYSLOG?: print syslog server */
-			outputf("%s\r\nOK\r\n", settings->syslog_server);
-		} else if (strncmp(lcmd, "at$tts=", 7) == 0) {
+			outputf("\n%s\r\n", settings->syslog_server);
+			did_nl = true;
+		} else if (strncmp(lcmd, "tts=", 4) == 0) {
 			/* AT$TTS=: set telnet NAWS */
 			int w, h, chars;
-			if (sscanf(lcmd + 7, "%dx%d%n", &w, &h, &chars) == 2 &&
+			if (sscanf(lcmd + 4, "%dx%d%n", &w, &h, &chars) == 2 &&
 			    chars > 0) {
 				if (w < 1 || w > 255) {
 					errstr = strdup("invalid width");
@@ -534,51 +630,72 @@ exec_cmd(char *cmd, size_t len)
 
 				settings->telnet_tts_w = w;
 				settings->telnet_tts_h = h;
-				output("OK\r\n");
 			} else {
 				errstr = strdup("must be WxH");
 				goto error;
 			}
-		} else if (strcmp(lcmd, "at$tts?") == 0) {
+		} else if (strcmp(lcmd, "tts?") == 0) {
 			/* AT$TTS?: show telnet NAWS setting */
-			outputf("%dx%d\r\nOK\r\n", settings->telnet_tts_w,
+			outputf("\n%dx%d\r\n", settings->telnet_tts_w,
 			    settings->telnet_tts_h);
-		} else if (strncmp(lcmd, "at$tty=", 7) == 0) {
+			did_nl = true;
+		} else if (strncmp(lcmd, "tty=", 4) == 0) {
 			/* AT$TTY=: set telnet TTYPE */
 			memset(settings->telnet_tterm, 0,
 			    sizeof(settings->telnet_tterm));
-			strncpy(settings->telnet_tterm, cmd + 7,
+			strncpy(settings->telnet_tterm, cmd + 4,
 			    sizeof(settings->telnet_tterm));
-			output("OK\r\n");
-		} else if (strcmp(lcmd, "at$tty?") == 0) {
+		} else if (strcmp(lcmd, "tty?") == 0) {
 			/* AT$TTY?: show telnet TTYPE setting */
-			outputf("%s\r\nOK\r\n", settings->telnet_tterm);
-		} else if (strcmp(lcmd, "at$update?") == 0) {
+			outputf("\n%s\r\n", settings->telnet_tterm);
+			did_nl = true;
+		} else if (strcmp(lcmd, "update?") == 0) {
 			/* AT$UPDATE?: show whether an OTA update is available */
 			update_process(false, false);
-		} else if (strcmp(lcmd, "at$update!") == 0) {
+		} else if (strcmp(lcmd, "update!") == 0) {
 			/* AT$UPDATE!: force an OTA update */
 			update_process(true, true);
-		} else if (strcmp(lcmd, "at$update") == 0) {
+		} else if (strcmp(lcmd, "update") == 0) {
 			/* AT$UPDATE: do an OTA update */
 			update_process(true, false);
 		} else
 			goto error;
+
+		/* consume all chars */
+		len = 0;
 		break;
 	case '&':
-		if (len < 4)
+		if (cmd[0] == '\0')
 			goto error;
 
-		switch (lcmd[3]) {
+		cmd_char = lcmd[0];
+		len--;
+		cmd++;
+		lcmd++;
+
+		/* find optional single digit after &command, defaulting to 0 */
+		cmd_num = 0;
+		if (cmd[0] >= '0' && cmd[0] <= '9') {
+			if (cmd[1] >= '0' && cmd[1] <= '9')
+				/* nothing uses more than 1 digit */
+				goto error;
+			cmd_num = cmd[0] - '0';
+			len--;
+			cmd++;
+			lcmd++;
+		}
+
+		switch (cmd_char) {
 		case 'w':
-			/* AT&W: save settings */
-			if (len != 4)
+			switch (cmd_num) {
+			case 0:
+				/* AT&W: save settings */
+				if (!EEPROM.commit())
+					goto error;
+				break;
+			default:
 				goto error;
-
-			if (!EEPROM.commit())
-				goto error;
-
-			output("OK\r\n");
+			}
 			break;
 		case 'z': {
 			/* AT&Z: manage bookmarks */
@@ -586,12 +703,12 @@ exec_cmd(char *cmd, size_t len)
 			uint8_t query;
 			int chars = 0;
 
-			if (sscanf(lcmd, "at&z%u=%n", &index, &chars) == 1 &&
+			if (sscanf(lcmd, "%u=%n", &index, &chars) == 1 &&
 			    chars > 0) {
 				/* AT&Zn=...: store address */
 				query = 0;
-			} else if (sscanf(lcmd, "at&z%u?%n", &index,
-			    &chars) == 1 && chars > 0) {
+			} else if (sscanf(lcmd, "%u?%n", &index, &chars) == 1 &&
+			    chars > 0) {
 				/* AT&Zn?: query stored address */
 				query = 1;
 			} else {
@@ -605,16 +722,19 @@ exec_cmd(char *cmd, size_t len)
 			}
 
 			if (query) {
-				outputf("%s\r\nOK\r\n",
+				outputf("\n%s\r\n",
 				    settings->bookmarks[index - 1]);
+				did_nl = true;
 			} else {
 				memset(settings->bookmarks[index - 1], 0,
 				    sizeof(settings->bookmarks[0]));
 				strncpy(settings->bookmarks[index - 1],
-				    cmd + 6,
+				    cmd + 2,
 				    sizeof(settings->bookmarks[0]) - 1);
-				output("OK\r\n");
 			}
+
+			/* consume all chars */
+			len = 0;
 			break;
 		}
 		default:
@@ -625,18 +745,29 @@ exec_cmd(char *cmd, size_t len)
 		goto error;
 	}
 
-	if (lcmd)
-		free(lcmd);
+done_parsing:
+	/* if any len left, parse as another command */
+	if (len > 0)
+		goto parse_cmd;
+
+	if (olcmd)
+		free(olcmd);
+
+	if (!settings->quiet)
+		outputf("%sOK\r\n", did_nl ? "" : "\n");
+
 	return;
 
 error:
-	if (lcmd)
-		free(lcmd);
+	if (olcmd)
+		free(olcmd);
 
-	output("ERROR");
-	if (errstr != NULL) {
-		outputf(" %s", errstr);
-		free(errstr);
+	if (!settings->quiet) {
+		output("\nERROR");
+		if (errstr != NULL) {
+			outputf(" %s", errstr);
+			free(errstr);
+		}
+		output("\r\n");
 	}
-	output("\r\n");
 }
