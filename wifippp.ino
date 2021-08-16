@@ -362,8 +362,7 @@ parse_cmd:
 
 			output("\n");
 
-			outputf("Firmware version:  %s\r\n",
-			    WIFISTATION_VERSION);
+			outputf("Firmware version:  %s\r\n", WIFIPPP_VERSION);
 
 			outputf("Default baud rate: %d\r\n", settings->baud);
 			outputf("Current baud rate: %d\r\n",
@@ -441,11 +440,6 @@ parse_cmd:
 			did_nl = true;
 			break;
 		}
-		case 3:
-			/* ATI3: show version */
-			outputf("\n%s\r\n", WIFISTATION_VERSION);
-			did_nl = true;
-			break;
 		default:
 			goto error;
 		}

@@ -69,7 +69,7 @@ update_https_get_body(const char *url, long expected_length)
 
 	client.printf("GET %s HTTP/1.0\r\n", path);
 	client.printf("Host: %s\r\n", host);
-	client.printf("User-Agent: wifistation %s\r\n", WIFISTATION_VERSION);
+	client.printf("User-Agent: WiFiPPP %s\r\n", WIFIPPP_VERSION);
 	client.printf("Connection: close\r\n");
 	client.printf("\r\n");
 
@@ -155,7 +155,7 @@ update_process(bool do_update, bool force)
 
 	client.stop();
 
-	if (version == WIFISTATION_VERSION && !force) {
+	if (version == WIFIPPP_VERSION && !force) {
 		outputf("ERROR OTA server reports version %s, no update "
 		    "available\r\n", version.c_str());
 		return;

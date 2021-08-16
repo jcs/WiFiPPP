@@ -24,7 +24,7 @@
 #include <Syslog.h>
 #include <WiFiUdp.h>
 
-#define WIFISTATION_VERSION	"0.5"
+#define WIFIPPP_VERSION		"0.1"
 
 #define EEPROM_SIZE		512
 struct __attribute((__packed__)) eeprom_data {
