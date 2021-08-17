@@ -17,14 +17,12 @@
 
 #include "wifippp.h"
 
-bool serial_alive = true;
-
 void
 serial_setup(void)
 {
 	/* DCE mode, acting as a modem */
 
-	serial_begin(settings->baud);
+	serial_start(settings->baud);
 
 	pinMode(pRI, OUTPUT);
 	serial_ri(false);
@@ -44,7 +42,7 @@ serial_setup(void)
 }
 
 void
-serial_begin(int baud)
+serial_start(int baud)
 {
 	Serial.begin(baud);
 }

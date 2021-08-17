@@ -162,11 +162,9 @@ outputf(const char *format, ...)
 int
 output(char c)
 {
-	if (serial_alive) {
-		serial_write(c);
-		if (c == '\n')
-			serial_flush();
-	}
+	serial_write(c);
+	if (c == '\n')
+		serial_flush();
 
 	return 0;
 }

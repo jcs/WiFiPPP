@@ -74,6 +74,21 @@ ppp_output_cb(__attribute__((unused)) ppp_pcb *pcb, u8_t *data, u32_t len,
 }
 
 void
+ppp_stop(bool wait)
+{
+	unsigned long now = millis();
+
+	ppp_close(_ppp, 0);
+
+	if (wait) {
+		while (state == STATE_PPP && now - millis() < 1000) {
+			pppos_input(_ppp, ppp_buf, 0);
+			yield();
+		}
+	}
+}
+
+void
 ppp_process(void)
 {
 	size_t bytes;

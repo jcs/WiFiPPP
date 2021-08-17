@@ -35,31 +35,33 @@ static unsigned int curcmdlen = 0;
 static unsigned int lastcmdlen = 0;
 static int plusses = 0;
 static unsigned long plus_wait = 0;
-static bool dtr = false;
+static unsigned long last_dtr = 0;
 
 void
 loop(void)
 {
 	int b = -1, i;
 	long now = millis();
+	bool hangup = false;
 
 	socks_process();
 
+	if (serial_dtr()) {
+		if (!last_dtr)
+			/* new connection, re-autobaud */
+			serial_autobaud();
+		last_dtr = now;
+	} else if (last_dtr && (now - last_dtr > 1750)) {
+		/* dropped DTR for 1.75 secs, hangup */
+		hangup = true;
+		last_dtr = 0;
+		syslog.log(LOG_INFO, "dropped DTR, hanging up");
+	} else if (!last_dtr)
+		return;
+
 	switch (state) {
 	case STATE_AT:
-		if (!serial_dtr()) {
-			dtr = false;
-			return;
-		}
-
-		if (!dtr) {
-			serial_autobaud();
-			dtr = true;
-		}
-
-		if (serial_available() && (b = serial_read()))
-			serial_alive = true;
-		else
+		if (!(serial_available() && (b = serial_read())))
 			return;
 
 		/* USR modem mode, ignore input not starting with at or a/ */
@@ -122,8 +124,13 @@ loop(void)
 	case STATE_TELNET:
 		b = -1;
 
-		if (serial_available() && (b = serial_read()))
-			serial_alive = true;
+		if (hangup) {
+			telnet_disconnect();
+			break;
+		}
+
+		if (serial_available())
+			b = serial_read();
 
 		if (b == -1 && plus_wait > 0 && (millis() - plus_wait) >= 500) {
 			/* received no input within 500ms of a plus */
@@ -160,8 +167,7 @@ loop(void)
 		}
 
 		if ((b = telnet_read()) != -1) {
-			if (serial_alive)
-				serial_write(b);
+			serial_write(b);
 			return;
 		} else if (!telnet_connected()) {
 			if (!settings->quiet) {
@@ -175,6 +181,11 @@ loop(void)
 		}
 		break;
 	case STATE_PPP:
+		if (hangup) {
+			ppp_stop(true);
+			break;
+		}
+
 		ppp_process();
 		break;
 	}
@@ -666,7 +677,7 @@ parse_cmd:
 						output("0\r");
 				}
 				serial_flush();
-				serial_begin(settings->baud);
+				serial_start(settings->baud);
 				break;
 			default:
 				output("ERROR unsupported baud rate\r\n");

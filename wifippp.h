@@ -81,10 +81,11 @@ const int pCTS     = 14;
 /* ppp.cpp */
 bool ppp_start(void);
 void ppp_process(void);
+void ppp_stop(bool wait);
 
 /* serial.cpp */
 void serial_setup(void);
-void serial_begin(int baud);
+void serial_start(int baud);
 uint8_t serial_read(void);
 bool serial_available(void);
 int16_t serial_peek(void);
@@ -125,6 +126,5 @@ int output(String str);
 
 /* wifippp.ino */
 void exec_cmd(char *cmd, size_t len);
-extern bool serial_alive;
 
 #endif
