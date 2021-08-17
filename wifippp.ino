@@ -302,6 +302,24 @@ parse_cmd:
 				goto error;
 			}
 			break;
+		case 'p':
+			if (strncmp(lcmd, "ppp", 3) == 0) {
+				/*
+				 * We can't easily support ATD because we allow
+				 * hostnames, so if the user typed
+				 * "atdtelnethost", we can't tell whether they
+				 * meant "atd telnethost" or "atdt elnethost",
+				 * but we can allow PPP since that is easy to
+				 * check and will probably be done
+				 * automatically by PPP software.
+				 */
+				host = ohost = (char *)malloc(4);
+				if (host == NULL)
+					goto error;
+				sprintf(host, "ppp");
+			} else
+				goto error;
+			break;
 		default:
 			goto error;
 		}

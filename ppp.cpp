@@ -34,7 +34,7 @@ void ppp_setup_nat(struct netif *nif);
 bool
 ppp_start(void)
 {
-	ip4_addr_t s_addr, c_addr;
+	ip4_addr_t s_addr, c_addr, d_addr;
 
 	_ppp = pppos_create(&ppp_netif, ppp_output_cb, ppp_status_cb, nullptr);
 	if (!_ppp) {
@@ -47,6 +47,9 @@ ppp_start(void)
 
 	ppp_set_ipcp_ouraddr(_ppp, &s_addr);
 	ppp_set_ipcp_hisaddr(_ppp, &c_addr); /* or hers! */
+
+	ip4_addr_set_u32(&d_addr, WiFi.dnsIP());
+	ppp_set_ipcp_dnsaddr(_ppp, 0, &d_addr);
 
 	outputf("CONNECT %d %s:PPP\r\n", settings->baud, ipaddr_ntoa(&s_addr));
 	serial_dcd(true);
