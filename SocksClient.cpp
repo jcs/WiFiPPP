@@ -444,6 +444,10 @@ SocksClient::proxy()
 #ifdef SOCKS_TRACE
 		syslog.logf(LOG_DEBUG, "[%d] client in closed", slot);
 #endif
+		if (tls())
+			client_out_tls.stop();
+		else
+			client_out.stop();
 		finish();
 		return;
 	}
@@ -452,12 +456,14 @@ SocksClient::proxy()
 #ifdef SOCKS_TRACE
 		syslog.logf(LOG_DEBUG, "[%d] client out tls closed", slot);
 #endif
+		client_in.stop();
 		finish();
 		return;
 	} else if (!tls() && !client_out.connected()) {
 #ifdef SOCKS_TRACE
 		syslog.logf(LOG_DEBUG, "[%d] client out closed", slot);
 #endif
+		client_in.stop();
 		finish();
 		return;
 	}
