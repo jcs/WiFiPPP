@@ -106,6 +106,14 @@ serial_autobaud(void)
 
 	Serial.begin(baud);
 
+	/* terminal program will probably look for an AT */
+	if (!settings->quiet) {
+		if (settings->verbal)
+			output("\r\nOK\r\n");
+		else
+			output("\r0\r");
+	}
+
 	return baud;
 }
 
