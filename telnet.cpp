@@ -1,5 +1,5 @@
 /*
- * WiFiStation
+ * WiFiPPP
  * Copyright (c) 2021 joshua stein <jcs@jcs.org>
  *
  * Permission to use, copy, modify, and distribute this software for any

@@ -1,5 +1,5 @@
 /*
- * WiFiStation
+ * WiFiPPP
  * Copyright (c) 2021 joshua stein <jcs@jcs.org>
  *
  * Permission to use, copy, modify, and distribute this software for any
@@ -18,7 +18,7 @@
 #include <WiFiClientSecure.h>
 #include "wifippp.h"
 
-#define OTA_VERSION_URL "https://raw.githubusercontent.com/jcs/WiFiStation/main/release/version.txt"
+#define OTA_VERSION_URL "https://raw.githubusercontent.com/jcs/WiFiPPP/main/release/version.txt"
 
 WiFiClientSecure client;
 
