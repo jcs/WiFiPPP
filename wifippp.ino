@@ -29,13 +29,14 @@
 
 uint8_t state = STATE_AT;
 
-static char curcmd[128] = { 0 };
-static char lastcmd[128] = { 0 };
+static char curcmd[64] = { 0 };
+static char lastcmd[64] = { 0 };
 static unsigned int curcmdlen = 0;
 static unsigned int lastcmdlen = 0;
 static int plusses = 0;
 static unsigned long plus_wait = 0;
 static unsigned long last_dtr = 0;
+static unsigned long last_autobaud = 0;
 
 void
 loop(void)
@@ -47,17 +48,21 @@ loop(void)
 	socks_process();
 
 	if (serial_dtr()) {
-		if (!last_dtr)
+		if (!last_dtr) {
 			/* new connection, re-autobaud */
+			syslog.logf(LOG_DEBUG, "new connection with DTR, "
+			    "doing auto-baud");
 			serial_autobaud();
+			now = millis();
+			last_autobaud = now;
+		}
 		last_dtr = now;
 	} else if (last_dtr && (now - last_dtr > 1750)) {
-		/* dropped DTR for 1.75 secs, hangup */
+		/* had DTR, dropped it for 1.75 secs, hangup */
 		hangup = true;
 		last_dtr = 0;
 		syslog.log(LOG_INFO, "dropped DTR, hanging up");
-	} else if (!last_dtr)
-		return;
+	}
 
 	switch (state) {
 	case STATE_AT:
@@ -66,8 +71,15 @@ loop(void)
 
 		/* USR modem mode, ignore input not starting with at or a/ */
 		if (curcmdlen == 0 && (b != 'A' && b != 'a')) {
+			if (b > 127 && (now - last_autobaud > 2000)) {
+				serial_autobaud();
+				now = millis();
+				last_autobaud = now;
+			}
 			return;
-		} else if (curcmdlen == 1 && b == '/') {
+		}
+
+		if (curcmdlen == 1 && b == '/') {
 			if (settings->echo)
 				output("/\r");
 			curcmd[0] = '\0';
@@ -358,7 +370,7 @@ parse_cmd:
 
 			telnet_disconnect();
 			if (ppp_start())
-				/* ppp_start outputs CONNECT line, since it has
+				/* ppp_begin outputs CONNECT line, since it has
 				 * to do so before calling ppp_listen */
 				state = STATE_PPP;
 			else if (!settings->quiet) {
@@ -375,7 +387,8 @@ parse_cmd:
 				if (!settings->quiet) {
 					if (settings->verbal)
 						outputf("CONNECT %d %s:%d\r\n",
-						    settings->baud, host, port);
+			    			    Serial.baudRate(), host,
+						    port);
 					else
 						output("18\r"); /* 57600 */
 				}
