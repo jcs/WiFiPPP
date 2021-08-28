@@ -68,35 +68,48 @@ extern Syslog syslog;
 
 #define MAX_UPLOAD_SIZE (16 * 1024)
 
-/* ESP8266 pins for Adafruit Huzzah */
+/* ESP8266 pins for WiModem232 module */
 const int pRedLED  = 0;
-const int pBlueLED = 2;
+const int pSCL     = 2;
+const int pSDA     = 4;
+const int pPixel   = 12;
+const int pDTR     = 14;
+
+/* still need to map out */
+const int pRTS     = 0;
+const int pCTS     = 0;
+const int pDSR     = 0;
+const int pDCD     = 0;
 const int pRI      = 0;
-const int pDCD     = 4;
-const int pDTR     = 5;
-const int pDSR     = 12;
-const int pRTS     = 13;
-const int pCTS     = 14;
+
+
+/* pixel.cpp */
+void pixel_setup(void);
+void pixel_set_rgb(int, int, int);
 
 /* ppp.cpp */
 bool ppp_start(void);
 void ppp_process(void);
-void ppp_stop(bool wait);
+void ppp_stop(bool);
+
+/* screen.cpp */
+void screen_setup(void);
 
 /* serial.cpp */
 void serial_setup(void);
-void serial_start(int baud);
+void serial_start(int);
 uint8_t serial_read(void);
 bool serial_available(void);
 int16_t serial_peek(void);
-void serial_write(char b);
+void serial_write(unsigned char);
+void serial_write(unsigned char *, size_t);
 void serial_flush(void);
 long serial_autobaud(void);
-void serial_cts(bool clear);
-void serial_dcd(bool carrier);
-void serial_dsr(bool ready);
+void serial_cts(bool);
+void serial_dcd(bool);
+void serial_dsr(bool);
 bool serial_dtr(void);
-void serial_ri(bool ringing);
+void serial_ri(bool);
 bool serial_rts(void);
 
 /* socks.cpp */
@@ -104,7 +117,7 @@ void socks_setup(void);
 void socks_process(void);
 
 /* telnet.cpp */
-int telnet_connect(char *host, uint16_t port);
+int telnet_connect(char *, uint16_t);
 bool telnet_connected(void);
 void telnet_disconnect(void);
 int telnet_read(void);
@@ -112,19 +125,20 @@ int telnet_write(char b);
 int telnet_write(String s);
 
 /* update.cpp */
-void update_process(bool do_update, bool force);
+void update_process(bool, bool);
 
 /* util.cpp */
 void syslog_setup(void);
 void led_setup(void);
 void led_reset(void);
+void led_set(bool);
 void error_flash(void);
-size_t outputf(const char *format, ...);
-int output(char c);
-int output(const char *str);
-int output(String str);
+size_t outputf(const char *, ...);
+int output(char);
+int output(const char *);
+int output(String);
 
 /* wifippp.ino */
-void exec_cmd(char *cmd, size_t len);
+void exec_cmd(char *, size_t);
 
 #endif

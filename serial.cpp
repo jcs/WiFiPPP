@@ -48,13 +48,22 @@ serial_start(int baud)
 }
 
 void
-serial_write(char b)
+serial_write(unsigned char b)
 {
-	if (settings->reg_r == REG_R_RTS_ON) {
-		while (!serial_rts())
-			yield();
+	serial_write(&b, 1);
+}
+
+void
+serial_write(unsigned char *data, size_t len)
+{
+	size_t i;
+	for (i = 0; i < len; i++) {
+		if (i % 8 == 0 && settings->reg_r == REG_R_RTS_ON) {
+			while (!serial_rts())
+				yield();
+		}
+		Serial.write(data[i]);
 	}
-	Serial.write(b);
 }
 
 void
@@ -111,7 +120,6 @@ serial_cts(bool clear)
 void
 serial_dcd(bool carrier)
 {
-	digitalWrite(pBlueLED, carrier ? LOW : HIGH);
 	digitalWrite(pDCD, carrier ? LOW : HIGH); /* inverted */
 }
 

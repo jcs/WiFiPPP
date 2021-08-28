@@ -48,8 +48,7 @@ setup(void)
 		settings->quiet = 0;
 		settings->verbal = 1;
 
-		/* a slow default for old computers */
-		settings->baud = 300;
+		settings->baud = 9600;
 
 		/* enable hardware flow control, disable software */
 		settings->reg_r = REG_R_RTS_ON;
@@ -75,9 +74,9 @@ setup(void)
 	syslog_setup();
 
 	serial_setup();
-
+	pixel_setup();
 	led_setup();
-	led_reset();
+	screen_setup();
 
 	WiFi.mode(WIFI_STA);
 
@@ -109,7 +108,6 @@ led_setup(void)
 {
 	/* setup LEDs */
 	pinMode(pRedLED, OUTPUT);
-	pinMode(pBlueLED, OUTPUT);
 	led_reset();
 }
 
@@ -125,7 +123,13 @@ void
 led_reset(void)
 {
 	digitalWrite(pRedLED, HIGH);
-	digitalWrite(pBlueLED, HIGH);
+}
+
+void
+led_set(bool on)
+{
+	/* inverted */
+	digitalWrite(pRedLED, on ? LOW : HIGH);
 }
 
 size_t
