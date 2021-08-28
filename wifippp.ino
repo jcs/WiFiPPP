@@ -607,7 +607,7 @@ parse_cmd:
 			/* AT$NET?: show telnet setting */
 			outputf("\n%d\r\n", settings->telnet);
 			did_nl = true;
-		} else if (strncmp(lcmd, "pass=", 8) == 0) {
+		} else if (strncmp(lcmd, "pass=", 5) == 0) {
 			/* AT$PASS=...: store wep/wpa passphrase */
 			memset(settings->wifi_pass, 0,
 			    sizeof(settings->wifi_pass));
