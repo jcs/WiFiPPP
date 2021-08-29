@@ -57,9 +57,8 @@ setup(void)
 		settings->telnet = 1;
 		strlcpy(settings->telnet_tterm, "ansi",
 		    sizeof(settings->telnet_tterm));
-		/* msTERM defaults */
-		settings->telnet_tts_w = 64;
-		settings->telnet_tts_h = 15;
+		settings->telnet_tts_w = 80;
+		settings->telnet_tts_h = 24;
 
 		memset(settings->bookmarks, 0, BOOKMARK_SIZE * NUM_BOOKMARKS);
 		strlcpy(settings->bookmarks[0], "klud.ge",
@@ -72,7 +71,6 @@ setup(void)
 	}
 
 	syslog_setup();
-
 	serial_setup();
 	pixel_setup();
 	led_setup();
