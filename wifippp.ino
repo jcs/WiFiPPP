@@ -50,8 +50,10 @@ loop(void)
 	if (serial_dtr()) {
 		if (!last_dtr) {
 			/* new connection, re-autobaud */
+#ifdef AT_TRACE
 			syslog.logf(LOG_DEBUG, "new connection with DTR, "
 			    "doing auto-baud");
+#endif
 			serial_autobaud();
 			now = millis();
 			last_autobaud = now;
@@ -61,7 +63,9 @@ loop(void)
 		/* had DTR, dropped it for 1.75 secs, hangup */
 		hangup = true;
 		last_dtr = 0;
-		syslog.log(LOG_INFO, "dropped DTR, hanging up");
+#ifdef AT_TRACE
+		syslog.log(LOG_DEBUG, "dropped DTR, hanging up");
+#endif
 	}
 
 	switch (state) {
@@ -222,6 +226,10 @@ exec_cmd(char *cmd, size_t len)
 		return;
 	}
 
+#ifdef AT_TRACE
+	syslog.logf(LOG_DEBUG, "%s: parsing \"%s\"", __func__, cmd);
+#endif
+
 	for (size_t i = 0; i < len; i++)
 		lcmd[i] = tolower(cmd[i]);
 	lcmd[len] = '\0';
@@ -261,6 +269,11 @@ parse_cmd:
 		cmd++;
 		lcmd++;
 	}
+
+#ifdef AT_TRACE
+	syslog.logf(LOG_DEBUG, "%s: parsing AT %c[%d] args \"%s\"", __func__,
+	    cmd_char, cmd_num, lcmd);
+#endif
 
 	switch (cmd_char) {
 	case 'd': {

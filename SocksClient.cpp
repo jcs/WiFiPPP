@@ -347,6 +347,12 @@ SocksClient::connect()
 
 	if (tls()) {
 		client_out_tls.setInsecure();
+		client_out_tls.setBufferSizes(1024, 1024);
+#ifdef SOCKS_TRACE
+		syslog.logf(LOG_DEBUG, "[%d] making TLS connection to %s:%d "
+		    "with %d free mem", slot, ipaddr_ntoa(&remote_ip),
+		    remote_port, ESP.getFreeHeap());
+#endif
 		ret = client_out_tls.connect(remote_ip, remote_port);
 	} else
 		ret = client_out.connect(remote_ip, remote_port);

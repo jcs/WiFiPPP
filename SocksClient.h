@@ -20,8 +20,6 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 
-// #define SOCKS_TRACE
-
 class SocksClient : public WiFiClient {
 public:
 	virtual ~SocksClient();

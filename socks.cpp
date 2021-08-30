@@ -51,7 +51,9 @@ socks_process(void)
 			}
 		}
 
+#ifdef SOCKS_TRACE
 		syslog.logf(LOG_DEBUG, "new SOCKS client, slot %d", slot);
+#endif
 
 		if (slot > -1) {
 			WiFiClient client = socks_server.available();

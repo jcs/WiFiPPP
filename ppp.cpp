@@ -51,12 +51,15 @@ ppp_start(void)
 	ip4_addr_set_u32(&d_addr, WiFi.dnsIP());
 	ppp_set_ipcp_dnsaddr(_ppp, 0, &d_addr);
 
-	outputf("CONNECT %d %s:PPP\r\n", settings->baud, ipaddr_ntoa(&s_addr));
+	outputf("CONNECT %d %s:PPP\r\n", Serial.baudRate(),
+	    ipaddr_ntoa(&s_addr));
 	serial_dcd(true);
 
 	ppp_listen(_ppp);
 
+#ifdef PPP_TRACE
 	syslog.log(LOG_INFO, "starting PPP negotiation");
+#endif
 
 	return true;
 }
@@ -65,10 +68,17 @@ u32_t
 ppp_output_cb(__attribute__((unused)) ppp_pcb *pcb, u8_t *data, u32_t len,
     __attribute__((unused)) void *ctx)
 {
-	u32_t i;
+#ifdef PPP_TRACE
+	long now = millis();
+#endif
 
-	for (i = 0; i < len; i++)
-		serial_write(data[i]);
+	serial_write(data, len);
+
+#ifdef PPP_TRACE
+	long elap = millis();
+	syslog.logf(LOG_DEBUG, "forwarded %ld PPP bytes in %ldms", len,
+	    elap - now);
+#endif
 
 	return len;
 }
@@ -78,14 +88,17 @@ ppp_stop(bool wait)
 {
 	unsigned long now = millis();
 
-	ppp_close(_ppp, 0);
-
 	if (wait) {
+		ppp_close(_ppp, 0);
+
 		while (state == STATE_PPP && now - millis() < 1000) {
 			pppos_input(_ppp, ppp_buf, 0);
 			yield();
 		}
 	}
+
+	if (state == STATE_PPP)
+		ppp_close(_ppp, 1);
 }
 
 void
@@ -116,8 +129,11 @@ ppp_status_cb(ppp_pcb *pcb, int err, __attribute__((unused)) void *ctx)
 
 	switch (err) {
 	case PPPERR_NONE:
-		syslog.log(LOG_DEBUG, "PPP session established");
 		ppp_setup_nat(nif);
+#ifdef PPP_TRACE
+		syslog.logf(LOG_DEBUG, "PPP session established, free mem %d",
+		    ESP.getFreeHeap());
+#endif
 		break;
 	case PPPERR_PARAM:
 		/* Invalid parameter. */
@@ -137,7 +153,9 @@ ppp_status_cb(ppp_pcb *pcb, int err, __attribute__((unused)) void *ctx)
 		break;
 	case PPPERR_USER:
 		/* User interrupt. */
+#ifdef PPP_TRACE
 		syslog.logf(LOG_ERR, "%s: PPPERR_USER", __func__);
+#endif
 		break;
 	case PPPERR_CONNECT:
 		/* Connection lost. */
@@ -176,8 +194,10 @@ ppp_status_cb(ppp_pcb *pcb, int err, __attribute__((unused)) void *ctx)
 		return;
 
 	if (err == PPPERR_USER) {
+#ifdef PPP_TRACE
 		syslog.log(LOG_DEBUG, "ending PPP session, "
 		    "returning to AT mode");
+#endif
 		ppp_free(_ppp);
 		_ppp = NULL;
 		state = STATE_AT;
@@ -186,7 +206,9 @@ ppp_status_cb(ppp_pcb *pcb, int err, __attribute__((unused)) void *ctx)
 		return;
 	}
 
+#ifdef PPP_TRACE
 	syslog.log(LOG_DEBUG, "closing PPP session");
+#endif
 	ppp_close(_ppp, 0);
 }
 

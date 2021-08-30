@@ -26,6 +26,12 @@
 
 #define WIFIPPP_VERSION		"0.1"
 
+/* enable various debugging */
+// #define AT_TRACE
+// #define OUTPUT_TRACE
+// #define PPP_TRACE
+// #define SOCKS_TRACE
+
 #define EEPROM_SIZE		512
 struct __attribute((__packed__)) eeprom_data {
 	char magic[3];
