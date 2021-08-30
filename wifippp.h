@@ -75,17 +75,17 @@ extern Syslog syslog;
 #define MAX_UPLOAD_SIZE (16 * 1024)
 
 /* ESP8266 pins for WiModem232 module */
-const int pRedLED  = 0;
 const int pSCL     = 2;
 const int pSDA     = 4;
+const int pDSR     = 5;
 const int pPixel   = 12;
 const int pDTR     = 14;
+const int pDCD     = 16;
+
 
 /* still need to map out */
+const int pCTS     = 0; //15, but responds weirdly when used
 const int pRTS     = 0;
-const int pCTS     = 0;
-const int pDSR     = 0;
-const int pDCD     = 0;
 const int pRI      = 0;
 
 
@@ -135,9 +135,6 @@ void update_process(char *, bool, bool);
 
 /* util.cpp */
 void syslog_setup(void);
-void led_setup(void);
-void led_reset(void);
-void led_set(bool);
 void error_flash(void);
 size_t outputf(const char *, ...);
 int output(char);

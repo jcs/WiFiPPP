@@ -73,7 +73,6 @@ setup(void)
 	syslog_setup();
 	serial_setup();
 	pixel_setup();
-	led_setup();
 	screen_setup();
 
 	WiFi.mode(WIFI_STA);
@@ -99,35 +98,6 @@ syslog_setup(void)
 		syslog.server(NULL, 514);
 
 	syslog.appName("WiFiPPP");
-}
-
-void
-led_setup(void)
-{
-	/* setup LEDs */
-	pinMode(pRedLED, OUTPUT);
-	led_reset();
-}
-
-void
-error_flash(void)
-{
-	digitalWrite(pRedLED, LOW);
-	delay(100);
-	digitalWrite(pRedLED, HIGH);
-}
-
-void
-led_reset(void)
-{
-	digitalWrite(pRedLED, HIGH);
-}
-
-void
-led_set(bool on)
-{
-	/* inverted */
-	digitalWrite(pRedLED, on ? LOW : HIGH);
 }
 
 size_t
