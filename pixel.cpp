@@ -33,7 +33,8 @@ pixel_setup(void)
 void
 pixel_adjust_brightness(void)
 {
-	int br = 255 * (double)(settings->pixel_brightness / 10.0);
+	/* the brightness can go to 255, but it's blinding */
+	int br = 170 * (double)(settings->pixel_brightness / 10.0);
 #ifdef PIXEL_TRACE
 	syslog.logf(LOG_DEBUG, "pixel: setting brightness to %d", br);
 #endif
