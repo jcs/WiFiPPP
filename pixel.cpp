@@ -19,6 +19,8 @@
 #include <Adafruit_NeoPixel.h>
 
 Adafruit_NeoPixel pixel(1, pPixel, NEO_GRB + NEO_KHZ800);
+static uint32_t cur_color = 0;
+static int wifi_status = WL_DISCONNECTED;
 
 void
 pixel_setup(void)
@@ -28,12 +30,65 @@ pixel_setup(void)
 	pixel.setBrightness(10);
 	pixel.show();
 
-	pixel_set_rgb(100, 100, 100);
+	/* default to red */
+	pixel_set_rgb(255, 0, 0);
 }
 
 void
 pixel_set_rgb(int r, int g, int b)
 {
-	pixel.setPixelColor(0, pixel.Color(r, g, b));
+	pixel_set_rgb(pixel.Color(r, g, b));
+}
+
+void
+pixel_set_rgb(uint32_t color)
+{
+#ifdef PIXEL_TRACE
+	syslog.logf(LOG_DEBUG, "pixel: changing color from %d to %d",
+	    cur_color, color);
+#endif
+	cur_color = color;
+	pixel.setPixelColor(0, cur_color);
 	pixel.show();
+}
+
+void
+pixel_color_by_state(void)
+{
+	uint32_t color = cur_color;
+
+	if (WiFi.status() != wifi_status) {
+		switch (WiFi.status()) {
+		case WL_CONNECTED:
+			/* yellow */
+			color = pixel.Color(255, 255, 0);
+			break;
+		default:
+			/* red */
+			color = pixel.Color(255, 0, 0);
+		}
+		wifi_status = WiFi.status();
+	} else {
+		switch (state) {
+		case STATE_AT:
+			if (telnet_connected())
+				/* teal */
+				color = pixel.Color(0, 255, 255);
+			else
+				/* yellow */
+				color = pixel.Color(255, 255, 0);
+			break;
+		case STATE_TELNET:
+			/* green */
+			color = pixel.Color(0, 255, 0);
+			break;
+		case STATE_UPDATING:
+			/* purple */
+			color = pixel.Color(255, 0, 255);
+			break;
+		}
+	}
+
+	if (color != cur_color)
+		pixel_set_rgb(color);
 }

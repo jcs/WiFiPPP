@@ -37,6 +37,7 @@ static int plusses = 0;
 static unsigned long plus_wait = 0;
 static unsigned long last_dtr = 0;
 static unsigned long last_autobaud = 0;
+static unsigned long last_pixel_color = 0;
 
 void
 loop(void)
@@ -44,6 +45,11 @@ loop(void)
 	int b = -1, i;
 	long now = millis();
 	bool hangup = false;
+
+	if (last_pixel_color - now > 500) {
+		pixel_color_by_state();
+		last_pixel_color = now;
+	}
 
 	socks_process();
 

@@ -29,6 +29,7 @@
 /* enable various debugging */
 // #define AT_TRACE
 // #define OUTPUT_TRACE
+// #define PIXEL_TRACE
 // #define PPP_TRACE
 // #define SOCKS_TRACE
 
@@ -66,6 +67,7 @@ enum {
 	STATE_AT,
 	STATE_TELNET,
 	STATE_PPP,
+	STATE_UPDATING,
 };
 
 extern uint8_t state;
@@ -92,6 +94,8 @@ const int pRI      = 0;
 /* pixel.cpp */
 void pixel_setup(void);
 void pixel_set_rgb(int, int, int);
+void pixel_set_rgb(uint32_t);
+void pixel_color_by_state(void);
 
 /* ppp.cpp */
 bool ppp_start(void);

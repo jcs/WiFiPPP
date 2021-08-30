@@ -205,6 +205,9 @@ update_process(char *url, bool do_update, bool force)
 	if (!update_https_get_body((char *)rom_url.c_str(), bytesize))
 		return;
 
+	state = STATE_UPDATING;
+	pixel_color_by_state();
+
 	outputf("Updating to version %s (%d bytes) from %s\r\n",
 	    version.c_str(), bytesize, (char *)rom_url.c_str());
 
