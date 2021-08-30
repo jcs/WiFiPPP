@@ -125,7 +125,7 @@ int telnet_write(char b);
 int telnet_write(String s);
 
 /* update.cpp */
-void update_process(bool, bool);
+void update_process(char *, bool, bool);
 
 /* util.cpp */
 void syslog_setup(void);
