@@ -63,7 +63,7 @@ update_https_get_body(const char *url, long expected_length)
 		 */
 		client_tls.setInsecure();
 	} else {
-		outputf("ERROR failed parsing URL %s\r\n", url);
+		outputf("ERROR failed parsing URL \"%s\"\r\n", url);
 		free(path);
 		free(host);
 		return false;
@@ -75,6 +75,11 @@ update_https_get_body(const char *url, long expected_length)
 	} else {
 		port = (tls ? 443 : 80);
 	}
+
+#ifdef UPDATE_TRACE
+	syslog.logf(LOG_DEBUG, "%s: host \"%s\" path \"%s\" port %d tls %d",
+	    __func__, host, path, port, tls ? 1 : 0);
+#endif
 
 	if (!(tls ? client_tls : client).connect(host, port)) {
 		outputf("ERROR OTA failed connecting to http%s://%s:%d\r\n",
@@ -99,6 +104,11 @@ update_https_get_body(const char *url, long expected_length)
 	    (tls ? client_tls : client).available()) {
 		String line = (tls ? client_tls : client).readStringUntil('\n');
 
+#ifdef UPDATE_TRACE
+		syslog.logf(LOG_DEBUG, "%s: read header \"%s\"", __func__,
+		    line.c_str());
+#endif
+
 		if (lines == 0)
 			sscanf(line.c_str(), "HTTP/1.%d %d%n", &httpver,
 			    &status, &chars);
@@ -111,6 +121,11 @@ update_https_get_body(const char *url, long expected_length)
 
 		lines++;
 	}
+
+#ifdef UPDATE_TRACE
+	syslog.logf(LOG_DEBUG, "%s: read status %d, content-length %d vs "
+	    "expected %ld", __func__, status, clength, expected_length);
+#endif
 
 	if (status != 200) {
 		outputf("ERROR OTA fetch of %s failed with HTTP status %d\r\n",
@@ -127,6 +142,9 @@ update_https_get_body(const char *url, long expected_length)
 	return true;
 
 drain:
+#ifdef UPDATE_TRACE
+	syslog.logf(LOG_DEBUG, "%s: draining remaining body", __func__);
+#endif
 	while ((tls ? client_tls : client).available())
 		(tls ? client_tls : client).read();
 	(tls ? client_tls : client).stop();
@@ -152,6 +170,10 @@ update_process(char *url, bool do_update, bool force)
 		memcpy_P(url, OTA_VERSION_URL, len);
 	}
 
+#ifdef UPDATE_TRACE
+	syslog.logf(LOG_DEBUG, "processing update from \"%s\"", url);
+#endif
+
 	if (!update_https_get_body(url, 0)) {
 		if (furl)
 			free(furl);
@@ -163,6 +185,11 @@ update_process(char *url, bool do_update, bool force)
 	lines = 0;
 	while ((tls ? client_tls : client).available()) {
 		String line = (tls ? client_tls : client).readStringUntil('\n');
+
+#ifdef UPDATE_TRACE
+		syslog.logf(LOG_DEBUG, "%s: read body[%d] \"%s\"", __func__,
+		    lines, line.c_str());
+#endif
 
 		switch (lines) {
 		case 0:
@@ -200,8 +227,11 @@ update_process(char *url, bool do_update, bool force)
 		return;
 	}
 
-	/* doing an update, parse the url */
-
+	/* doing an update, parse the url read */
+#ifdef UPDATE_TRACE
+	syslog.logf(LOG_DEBUG, "%s: doing update with ROM url \"%s\" size %d",
+	    __func__, rom_url.c_str(), bytesize);
+#endif
 	if (!update_https_get_body((char *)rom_url.c_str(), bytesize))
 		return;
 

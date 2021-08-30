@@ -32,6 +32,7 @@
 // #define PIXEL_TRACE
 // #define PPP_TRACE
 // #define SOCKS_TRACE
+// #define UPDATE_TRACE
 
 #define EEPROM_SIZE		512
 struct __attribute((__packed__)) eeprom_data {
