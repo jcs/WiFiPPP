@@ -614,7 +614,22 @@ parse_cmd:
 		break;
 	case '$':
 		/* wifi232 commands, all consume the rest of the input string */
-		if (strcmp(lcmd, "net=0") == 0) {
+		if (strcmp(lcmd, "led?") == 0) {
+			/* AT$LED?: show pixel brightness setting */
+			outputf("\n%d\r\n", settings->pixel_brightness);
+			did_nl = true;
+		} else if (strncmp(lcmd, "led=", 4) == 0) {
+			/* AT$LED=n: set pixel brightness */
+			int br, chars;
+			if (sscanf(lcmd, "led=%d%n", &br, &chars) != 1 ||
+		    	    chars == 0 || br < 0 || br > 10) {
+				errstr = strdup("brightness must be between "
+				    "0 and 10");
+				goto error;
+			}
+			settings->pixel_brightness = br;
+			pixel_adjust_brightness();
+		} else if (strcmp(lcmd, "net=0") == 0) {
 			/* AT$NET=0: disable telnet setting */
 			settings->telnet = 0;
 		} else if (strcmp(lcmd, "net=1") == 0) {
@@ -680,11 +695,8 @@ parse_cmd:
 			/* AT$SB=...: set baud rate */
 			if (sscanf(lcmd, "sb=%d%n", &baud, &chars) != 1 ||
 		    	    chars == 0) {
-				if (settings->verbal)
-					output("ERROR invalid baud rate\r\n");
-				else
-					output("4\r");
-				break;
+				errstr = strdup("invalid baud rate");
+				goto error;
 			}
 
 			switch (baud) {
@@ -710,8 +722,8 @@ parse_cmd:
 				serial_start(settings->baud);
 				break;
 			default:
-				output("ERROR unsupported baud rate\r\n");
-				break;
+				errstr = strdup("unsupported baud rate");
+				goto error;
 			}
 		} else if (strcmp(lcmd, "sb?") == 0) {
 			/* AT$SB?: print baud rate */

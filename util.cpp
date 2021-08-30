@@ -67,6 +67,8 @@ setup(void)
 		IP4_ADDR(&settings->ppp_server_ip, 10, 10, 10, 10);
 		IP4_ADDR(&settings->ppp_client_ip, 10, 10, 10, 20);
 
+		settings->pixel_brightness = 10;
+
 		EEPROM.commit();
 	}
 

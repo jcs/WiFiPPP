@@ -62,6 +62,7 @@ struct __attribute((__packed__)) eeprom_data {
 	uint8_t echo;
 	uint8_t quiet;
 	uint8_t verbal;
+	uint8_t pixel_brightness;
 };
 
 enum {
@@ -97,6 +98,7 @@ void pixel_setup(void);
 void pixel_set_rgb(int, int, int);
 void pixel_set_rgb(uint32_t);
 void pixel_color_by_state(void);
+void pixel_adjust_brightness(void);
 
 /* ppp.cpp */
 bool ppp_start(void);

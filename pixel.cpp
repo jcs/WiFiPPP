@@ -27,11 +27,19 @@ pixel_setup(void)
 {
 	pixel.begin();
 	pixel.clear();
-	pixel.setBrightness(10);
-	pixel.show();
+	pixel_adjust_brightness();
+}
 
-	/* default to red */
-	pixel_set_rgb(255, 0, 0);
+void
+pixel_adjust_brightness(void)
+{
+	int br = 255 * (double)(settings->pixel_brightness / 10.0);
+#ifdef PIXEL_TRACE
+	syslog.logf(LOG_DEBUG, "pixel: setting brightness to %d", br);
+#endif
+	pixel.setBrightness(br);
+	pixel.show();
+	pixel_set_rgb(cur_color);
 }
 
 void
