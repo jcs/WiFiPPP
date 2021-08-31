@@ -614,7 +614,48 @@ parse_cmd:
 		break;
 	case '$':
 		/* wifi232 commands, all consume the rest of the input string */
-		if (strcmp(lcmd, "led?") == 0) {
+		if (strncmp(lcmd, "baud=", 5) == 0) {
+			uint32_t baud = 0;
+			int chars = 0;
+
+			/* AT$BAUD=...: set baud rate */
+			if (sscanf(lcmd, "baud=%d%n", &baud, &chars) != 1 ||
+		    	    chars == 0) {
+				errstr = strdup("invalid baud rate");
+				goto error;
+			}
+
+			switch (baud) {
+			case 110:
+			case 300:
+			case 1200:
+			case 2400:
+			case 4800:
+			case 9600:
+			case 19200:
+			case 38400:
+			case 57600:
+			case 115200:
+				settings->baud = baud;
+				if (!settings->quiet) {
+					if (settings->verbal)
+						outputf("\nOK switching to "
+						    "%d\r\n", settings->baud);
+					else
+						output("0\r");
+				}
+				serial_flush();
+				serial_start(settings->baud);
+				break;
+			default:
+				errstr = strdup("unsupported baud rate");
+				goto error;
+			}
+		} else if (strcmp(lcmd, "baud?") == 0) {
+			/* AT$BAUD?: print default baud rate */
+			outputf("\n%d\r\n", settings->baud);
+			did_nl = true;
+		} else if (strcmp(lcmd, "led?") == 0) {
 			/* AT$LED?: show pixel brightness setting */
 			outputf("\n%d\r\n", settings->pixel_brightness);
 			did_nl = true;
@@ -629,6 +670,31 @@ parse_cmd:
 			}
 			settings->pixel_brightness = br;
 			pixel_adjust_brightness();
+		} else if (strncmp(lcmd, "naws=", 5) == 0) {
+			/* AT$NAWS=: set telnet NAWS */
+			int w, h, chars;
+			if (sscanf(lcmd + 5, "%dx%d%n", &w, &h, &chars) == 2 &&
+			    chars > 0) {
+				if (w < 1 || w > 255) {
+					errstr = strdup("invalid width");
+					goto error;
+				}
+				if (h < 1 || h > 255) {
+					errstr = strdup("invalid height");
+					goto error;
+				}
+
+				settings->telnet_tts_w = w;
+				settings->telnet_tts_h = h;
+			} else {
+				errstr = strdup("must be WxH");
+				goto error;
+			}
+		} else if (strcmp(lcmd, "naws?") == 0) {
+			/* AT$NAWS?: show telnet NAWS setting */
+			outputf("\n%dx%d\r\n", settings->telnet_tts_w,
+			    settings->telnet_tts_h);
+			did_nl = true;
 		} else if (strcmp(lcmd, "net=0") == 0) {
 			/* AT$NET=0: disable telnet setting */
 			settings->telnet = 0;
@@ -688,47 +754,6 @@ parse_cmd:
 			ip_addr_copy(t_addr, settings->ppp_server_ip);
 			outputf("\n%s\r\n", ipaddr_ntoa(&t_addr));
 			did_nl = true;
-		} else if (strncmp(lcmd, "sb=", 3) == 0) {
-			uint32_t baud = 0;
-			int chars = 0;
-
-			/* AT$SB=...: set baud rate */
-			if (sscanf(lcmd, "sb=%d%n", &baud, &chars) != 1 ||
-		    	    chars == 0) {
-				errstr = strdup("invalid baud rate");
-				goto error;
-			}
-
-			switch (baud) {
-			case 110:
-			case 300:
-			case 1200:
-			case 2400:
-			case 4800:
-			case 9600:
-			case 19200:
-			case 38400:
-			case 57600:
-			case 115200:
-				settings->baud = baud;
-				if (!settings->quiet) {
-					if (settings->verbal)
-						outputf("\nOK switching to "
-						    "%d\r\n", settings->baud);
-					else
-						output("0\r");
-				}
-				serial_flush();
-				serial_start(settings->baud);
-				break;
-			default:
-				errstr = strdup("unsupported baud rate");
-				goto error;
-			}
-		} else if (strcmp(lcmd, "sb?") == 0) {
-			/* AT$SB?: print baud rate */
-			outputf("\n%d\r\n", settings->baud);
-			did_nl = true;
 		} else if (strncmp(lcmd, "ssid=", 5) == 0) {
 			/* AT$SSID=...: set wifi ssid */
 			memset(settings->wifi_ssid, 0,
@@ -757,39 +782,14 @@ parse_cmd:
 			/* AT$SYSLOG?: print syslog server */
 			outputf("\n%s\r\n", settings->syslog_server);
 			did_nl = true;
-		} else if (strncmp(lcmd, "tts=", 4) == 0) {
-			/* AT$TTS=: set telnet NAWS */
-			int w, h, chars;
-			if (sscanf(lcmd + 4, "%dx%d%n", &w, &h, &chars) == 2 &&
-			    chars > 0) {
-				if (w < 1 || w > 255) {
-					errstr = strdup("invalid width");
-					goto error;
-				}
-				if (h < 1 || h > 255) {
-					errstr = strdup("invalid height");
-					goto error;
-				}
-
-				settings->telnet_tts_w = w;
-				settings->telnet_tts_h = h;
-			} else {
-				errstr = strdup("must be WxH");
-				goto error;
-			}
-		} else if (strcmp(lcmd, "tts?") == 0) {
-			/* AT$TTS?: show telnet NAWS setting */
-			outputf("\n%dx%d\r\n", settings->telnet_tts_w,
-			    settings->telnet_tts_h);
-			did_nl = true;
-		} else if (strncmp(lcmd, "tty=", 4) == 0) {
-			/* AT$TTY=: set telnet TTYPE */
+		} else if (strncmp(lcmd, "ttype=", 6) == 0) {
+			/* AT$TTYPE=: set telnet TTYPE */
 			memset(settings->telnet_tterm, 0,
 			    sizeof(settings->telnet_tterm));
 			strncpy(settings->telnet_tterm, cmd + 4,
 			    sizeof(settings->telnet_tterm));
-		} else if (strcmp(lcmd, "tty?") == 0) {
-			/* AT$TTY?: show telnet TTYPE setting */
+		} else if (strcmp(lcmd, "ttype?") == 0) {
+			/* AT$TTYPE?: show telnet TTYPE setting */
 			outputf("\n%s\r\n", settings->telnet_tterm);
 			did_nl = true;
 		} else if (strncmp(lcmd, "update?", 7) == 0) {
