@@ -115,16 +115,16 @@ update_https_get_body(const char *url, long expected_length)
 		else if (sscanf(line.c_str(), "Content-Length: %d%n",
 		    &tlength, &chars) == 1 && chars > 0)
 			clength = tlength;
-		else if (line == "\r") {
+		else if (line == "\r")
 			break;
-		}
 
 		lines++;
 	}
 
 #ifdef UPDATE_TRACE
 	syslog.logf(LOG_DEBUG, "%s: read status %d, content-length %d vs "
-	    "expected %ld", __func__, status, clength, expected_length);
+	    "expected %ld, finished on line %d", __func__, status, clength,
+	    expected_length, lines);
 #endif
 
 	if (status != 200) {
@@ -185,8 +185,14 @@ update_process(char *url, bool do_update, bool force)
 	if (furl)
 		free(furl);
 
+#ifdef UPDATE_TRACE
+	syslog.logf(LOG_DEBUG, "reading body of manifest (available %d)",
+	    (tls ? client_tls : client).available());
+#endif
+
 	lines = 0;
-	while ((tls ? client_tls : client).available()) {
+	while ((tls ? client_tls : client).connected() ||
+	    (tls ? client_tls : client).available()) {
 		String line = (tls ? client_tls : client).readStringUntil('\n');
 
 #ifdef UPDATE_TRACE
@@ -219,6 +225,10 @@ update_process(char *url, bool do_update, bool force)
 	}
 
 	(tls ? client_tls : client).stop();
+
+#ifdef UPDATE_TRACE
+	syslog.logf(LOG_DEBUG, "done reading body after %d lines", lines);
+#endif
 
 	if (version == WIFIPPP_VERSION && !force) {
 		outputf("ERROR OTA server reports version %s, no update "
@@ -253,7 +263,7 @@ update_process(char *url, bool do_update, bool force)
 		 * Just force serial output here rather than using outputf,
 		 * don't let it block us.
 		 */
-		Serial.printf("\rFlash update progress: % 6d of % 6d", progress,
+		Serial.printf("\rFlash update progress:% 7d of %d", progress,
 		    total);
 	});
 
