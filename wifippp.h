@@ -147,6 +147,7 @@ size_t outputf(const char *, ...);
 int output(char);
 int output(const char *);
 int output(String);
+void syslog_buf(const char *, size_t);
 
 /* wifippp.ino */
 void exec_cmd(char *, size_t);

@@ -174,3 +174,33 @@ output(String str)
 
 	return ret;
 }
+
+void
+syslog_buf(const char *buf, size_t len)
+{
+	static char tbuf[(64 * 4) + 1];
+	size_t tbufl = 0;
+
+	if (len > 64)
+		len = 64;
+
+	for (size_t i = 0; i < len; i++) {
+		if (buf[i] == '\n') {
+			tbuf[tbufl++] = '\\';
+			tbuf[tbufl++] = 'n';
+		} else if (buf[i] == '\r') {
+			tbuf[tbufl++] = '\\';
+			tbuf[tbufl++] = 'r';
+		} else if (buf[i] == ' ') {
+			tbuf[tbufl++] = ' ';
+		} else if (buf[i] < '!' || buf[i] > '~') {
+			sprintf(tbuf + tbufl, "[%02x]", buf[i]);
+			tbufl += 4;
+		} else {
+			tbuf[tbufl++] = buf[i];
+		}
+	}
+	tbuf[tbufl] = '\0';
+
+	syslog.log(LOG_DEBUG, tbuf);
+}

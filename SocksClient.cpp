@@ -378,25 +378,6 @@ SocksClient::connect()
 	state = STATE_PROXY;
 }
 
-#ifdef SOCKS_TRACE
-void
-SocksClient::dump_buf(size_t len)
-{
-	char tbuf[(64 * 3) + 1];
-	size_t tbufl = 0;
-
-	if (len > 64)
-		len = 64;
-
-	for (size_t i = 0; i < len; i++) {
-		sprintf(tbuf + tbufl, " %02x", buf[i]);
-		tbufl += 3;
-	}
-
-	syslog.logf(LOG_DEBUG, "[%d] %s", slot, tbuf);
-}
-#endif
-
 void
 SocksClient::proxy()
 {
@@ -415,7 +396,7 @@ SocksClient::proxy()
 		syslog.logf(LOG_DEBUG, "[%d] read %d bytes from client in, "
 		    "sending to client out %s", slot, len,
 		    (tls() ? "tls" : ""));
-		dump_buf(len);
+		syslog_buf(buf, len);
 #endif
 		if (tls())
 			client_out_tls.write(buf, len);
@@ -430,7 +411,7 @@ SocksClient::proxy()
 			syslog.logf(LOG_DEBUG, "[%d] read %d bytes from "
 			    "client out tls, sending to client in",
 			    slot, len);
-			dump_buf(len);
+			syslog_buf(buf, len);
 #endif
 			client_in.write(buf, len);
 		}
@@ -440,7 +421,7 @@ SocksClient::proxy()
 #ifdef SOCKS_TRACE
 			syslog.logf(LOG_DEBUG, "[%d] read %d bytes from "
 			    "client out, sending to client in", slot, len);
-			dump_buf(len);
+			syslog_buf(buf, len);
 #endif
 			client_in.write(buf, len);
 		}
