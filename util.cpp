@@ -26,7 +26,7 @@ void
 setup(void)
 {
 	static_assert(sizeof(struct eeprom_data) < EEPROM_SIZE,
-	    "EEPROM_SIZE is not large enough to hold struct eeprom_data");
+	    "EEPROM_SIZE < sizeof(struct eeprom_data)");
 
 	EEPROM.begin(EEPROM_SIZE);
 	settings = (struct eeprom_data *)EEPROM.getDataPtr();

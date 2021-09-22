@@ -76,7 +76,7 @@ ppp_output_cb(__attribute__((unused)) ppp_pcb *pcb, u8_t *data, u32_t len,
 
 #ifdef PPP_TRACE
 	long elap = millis();
-	syslog.logf(LOG_DEBUG, "forwarded %ld PPP bytes in %ldms", len,
+	syslog.logf(LOG_DEBUG, "forwarded %ld PPP bytes out in %ldms", len,
 	    elap - now);
 #endif
 
@@ -105,6 +105,9 @@ void
 ppp_process(void)
 {
 	size_t bytes;
+#ifdef PPP_TRACE
+	long now = millis();
+#endif
 
 	if (state != STATE_PPP) {
 		syslog.logf(LOG_ERR, "%s but state is %d!", __func__, state);
@@ -120,6 +123,12 @@ ppp_process(void)
 
 	bytes = Serial.readBytes(ppp_buf, bytes);
 	pppos_input(_ppp, ppp_buf, bytes);
+
+#ifdef PPP_TRACE
+	long elap = millis();
+	syslog.logf(LOG_DEBUG, "processed %zu PPP bytes in %ldms", bytes,
+	    elap - now);
+#endif
 }
 
 void
@@ -130,70 +139,10 @@ ppp_status_cb(ppp_pcb *pcb, int err, __attribute__((unused)) void *ctx)
 	switch (err) {
 	case PPPERR_NONE:
 		ppp_setup_nat(nif);
-#ifdef PPP_TRACE
 		syslog.logf(LOG_DEBUG, "PPP session established, free mem %d",
 		    ESP.getFreeHeap());
-#endif
-		break;
-	case PPPERR_PARAM:
-		/* Invalid parameter. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_PARAM", __func__);
-		break;
-	case PPPERR_OPEN:
-		/* Unable to open PPP session. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_OPEN", __func__);
-		break;
-	case PPPERR_DEVICE:
-		/* Invalid I/O device for PPP. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_DEVICE", __func__);
-		break;
-	case PPPERR_ALLOC:
-		/* Unable to allocate resources. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_ALLOC", __func__);
-		break;
-	case PPPERR_USER:
-		/* User interrupt. */
-#ifdef PPP_TRACE
-		syslog.logf(LOG_ERR, "%s: PPPERR_USER", __func__);
-#endif
-		break;
-	case PPPERR_CONNECT:
-		/* Connection lost. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_CONNECT", __func__);
-		break;
-	case PPPERR_AUTHFAIL:
-		/* Failed authentication challenge. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_AUTHFAIL", __func__);
-		break;
-	case PPPERR_PROTOCOL:
-		/* Failed to meet protocol. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_PROTOCOL", __func__);
-		break;
-	case PPPERR_PEERDEAD:
-		/* Connection timeout. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_PEERDEAD", __func__);
-		break;
-	case PPPERR_IDLETIMEOUT:
-		/* Idle Timeout. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_IDLETIMEOUT", __func__);
-		break;
-	case PPPERR_CONNECTTIME:
-		/* Max connect time reached. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_CONNECTTIME", __func__);
-		break;
-	case PPPERR_LOOPBACK:
-		/* Connection timeout. */
-		syslog.logf(LOG_ERR, "%s: PPPERR_LOOPBACK", __func__);
-		break;
-	default:
-		syslog.logf(LOG_ERR, "%s: unknown error %d", __func__, err);
-		break;
-	}
-
-	if (err == PPPERR_NONE)
 		return;
-
-	if (err == PPPERR_USER) {
+	case PPPERR_USER:
 #ifdef PPP_TRACE
 		syslog.log(LOG_DEBUG, "ending PPP session, "
 		    "returning to AT mode");
@@ -204,12 +153,19 @@ ppp_status_cb(ppp_pcb *pcb, int err, __attribute__((unused)) void *ctx)
 		serial_dcd(false);
 		outputf("\r\nNO CARRIER\r\n");
 		return;
-	}
+	default:
+#ifndef PPP_TRACE
+		if (err == PPPERR_USER)
+			break;
+#endif
+		syslog.logf(LOG_ERR, "%s: err %d", __func__, err);
 
 #ifdef PPP_TRACE
-	syslog.log(LOG_DEBUG, "closing PPP session");
+		syslog.log(LOG_DEBUG, "closing PPP session");
 #endif
-	ppp_close(_ppp, 0);
+		ppp_close(_ppp, 0);
+		break;
+	}
 }
 
 void

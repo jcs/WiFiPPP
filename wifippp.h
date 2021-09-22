@@ -86,12 +86,10 @@ const int pPixel   = 12;
 const int pDTR     = 14;
 const int pDCD     = 16;
 
-
 /* still need to map out */
 const int pCTS     = 0; //15, but responds weirdly when used
 const int pRTS     = 0;
 const int pRI      = 0;
-
 
 /* pixel.cpp */
 void pixel_setup(void);

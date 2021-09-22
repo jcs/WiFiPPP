@@ -27,13 +27,15 @@
 
 #include "wifippp.h"
 
+#define AUTOBAUD
+
 uint8_t state = STATE_AT;
 
 static char curcmd[64] = { 0 };
 static char lastcmd[64] = { 0 };
-static unsigned int curcmdlen = 0;
-static unsigned int lastcmdlen = 0;
-static int plusses = 0;
+static unsigned char curcmdlen = 0;
+static unsigned char lastcmdlen = 0;
+static unsigned char plusses = 0;
 static unsigned long plus_wait = 0;
 static unsigned long last_dtr = 0;
 static unsigned long last_autobaud = 0;
@@ -463,7 +465,9 @@ parse_cmd:
 			did_nl = true;
 			break;
 		case 2:
-			/* ATI2: test RAM (not used) */
+			/* ATI2: test RAM (show ram info) */
+			outputf("\nFree heap: %d\r\n", ESP.getFreeHeap());
+			did_nl = true;
 			break;
 		case 4: {
 			/* ATI4: show settings */

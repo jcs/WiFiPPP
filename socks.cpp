@@ -25,7 +25,7 @@
 WiFiServer socks_server(SOCKS_PORT);
 
 #define MAX_SOCKS_CLIENTS 5
-SocksClient *socks_clients[MAX_SOCKS_CLIENTS] = { nullptr };
+static SocksClient *socks_clients[MAX_SOCKS_CLIENTS] = { nullptr };
 
 void
 socks_setup(void)

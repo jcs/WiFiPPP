@@ -20,7 +20,7 @@
 
 Adafruit_NeoPixel pixel(1, pPixel, NEO_GRB + NEO_KHZ800);
 static uint32_t cur_color = 0;
-static int wifi_status = WL_DISCONNECTED;
+static char wifi_status = WL_DISCONNECTED;
 
 void
 pixel_setup(void)

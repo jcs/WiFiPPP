@@ -263,8 +263,9 @@ update_process(char *url, bool do_update, bool force)
 		 * Just force serial output here rather than using outputf,
 		 * don't let it block us.
 		 */
-		Serial.printf("\rFlash update progress:% 7d of %d", progress,
-		    total);
+		if (progress == 1 || progress % 1024 == 0 || progress == total)
+			Serial.printf("\rFlash update progress:% 7d of %d",
+			    progress, total);
 	});
 
 	if ((int)Update.writeStream((tls ? client_tls : client)) != bytesize) {
