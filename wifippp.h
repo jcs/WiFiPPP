@@ -26,12 +26,14 @@
 
 #define WIFIPPP_VERSION		"0.1"
 
-/* enable various debugging */
+/* enable various debugging through syslog */
 // #define AT_TRACE
 // #define OUTPUT_TRACE
 // #define PIXEL_TRACE
 // #define PPP_TRACE
 // #define SOCKS_TRACE
+// #define TELNET_DATA_TRACE
+// #define TELNET_IAC_TRACE
 // #define UPDATE_TRACE
 
 #define EEPROM_SIZE		512
