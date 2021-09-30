@@ -31,9 +31,9 @@ public:
 	bool tls() { return _tls; };
 	int state;
 	int slot;
-	WiFiClient client_in;
-	WiFiClient client_out;
-	WiFiClientSecure client_out_tls;
+	WiFiClient local_client;
+	WiFiClient remote_client;
+	WiFiClientSecure remote_client_tls;
 
 private:
 	void verify_method();
@@ -45,13 +45,17 @@ private:
 	void proxy();
 	void finish();
 
-	void dump_buf(size_t len);
+	void dump_buf(char *buf, size_t len);
 
-	unsigned char buf[64];
+	/* data from local client */
+	unsigned char local_buf[64];
+	size_t local_buf_len;
+
+	/* data from remote client */
+	unsigned char remote_buf[64];
+	size_t remote_buf_len;
 	unsigned char *remote_hostname;
 	ip4_addr_t remote_ip;
 	uint16_t remote_port;
 	bool _tls;
-
-	size_t buflen;
 };
