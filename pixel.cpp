@@ -34,7 +34,7 @@ void
 pixel_adjust_brightness(void)
 {
 	/* the brightness can go to 255, but it's blinding */
-	int br = 170 * (double)(settings->pixel_brightness / 10.0);
+	int br = 80 * (double)(settings->pixel_brightness / 10.0);
 #ifdef PIXEL_TRACE
 	syslog.logf(LOG_DEBUG, "pixel: setting brightness to %d", br);
 #endif
@@ -84,12 +84,16 @@ pixel_color_by_state(void)
 				/* teal */
 				color = pixel.Color(0, 255, 255);
 			else
-				/* yellow */
-				color = pixel.Color(255, 255, 0);
+				/* white */
+				color = pixel.Color(255, 255, 255);
 			break;
 		case STATE_TELNET:
 			/* green */
 			color = pixel.Color(0, 255, 0);
+			break;
+		case STATE_PPP:
+			/* blue */
+			color = pixel.Color(0, 0, 255);
 			break;
 		case STATE_UPDATING:
 			/* purple */
