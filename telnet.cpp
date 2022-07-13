@@ -273,8 +273,8 @@ telnet_send_tspeed(void)
 	TELNET_IAC_DEBUG("%s: -> IAC SB TSPEED IS %d,%d IAC SE", __func__,
 	    Serial.baudRate(), Serial.baudRate());
 
-	telnet.printf("%c%c%c%d,%d", IAC, SB, IAC_TSPEED, Serial.baudRate(),
-	    Serial.baudRate());
+	telnet.printf("%c%c%c%c%d,%d", IAC, SB, IAC_TSPEED, IS,
+	    Serial.baudRate(), Serial.baudRate());
 
 	telnet.printf("%c%c", IAC, SE);
 }
