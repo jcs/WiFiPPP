@@ -110,6 +110,7 @@ void ppp_stop(bool);
 void screen_setup(void);
 
 /* serial.cpp */
+extern const unsigned long ok_bauds[];
 void serial_setup(void);
 void serial_start(int);
 uint8_t serial_read(void);

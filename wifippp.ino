@@ -639,7 +639,7 @@ parse_cmd:
 			did_nl = true;
 		} else if (strncmp(lcmd, "baud=", 5) == 0) {
 			uint32_t baud = 0;
-			int chars = 0;
+			int i, chars = 0;
 
 			/* AT$BAUD=...: set baud rate */
 			if (sscanf(lcmd, "baud=%d%n", &baud, &chars) != 1 ||
@@ -648,34 +648,26 @@ parse_cmd:
 				goto error;
 			}
 
-			switch (baud) {
-			case 110:
-			case 300:
-			case 1200:
-			case 2400:
-			case 4800:
-			case 9600:
-			case 14400:
-			case 19200:
-			case 28800:
-			case 38400:
-			case 57600:
-			case 115200:
-				settings->baud = baud;
-				if (!settings->quiet) {
-					if (settings->verbal)
-						outputf("\nOK switching to "
-						    "%d\r\n", settings->baud);
-					else
-						output("0\r");
+			for (i = 0; ; i++) {
+				if (ok_bauds[i] == 0) {
+					errstr = strdup("unsupported baud "
+					    "rate");
+					goto error;
 				}
-				serial_flush();
-				serial_start(settings->baud);
-				break;
-			default:
-				errstr = strdup("unsupported baud rate");
-				goto error;
+				if (ok_bauds[i] == baud)
+					break;
 			}
+
+			settings->baud = baud;
+			if (!settings->quiet) {
+				if (settings->verbal)
+					outputf("\nOK switching to %d\r\n",
+					    settings->baud);
+				else
+					output("0\r");
+			}
+			serial_flush();
+			serial_start(settings->baud);
 		} else if (strcmp(lcmd, "baud?") == 0) {
 			/* AT$BAUD?: print default baud rate */
 			outputf("\n%d\r\n", settings->baud);

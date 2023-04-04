@@ -17,6 +17,22 @@
 
 #include "wifippp.h"
 
+const unsigned long ok_bauds[] = {
+	110,
+	300,
+	1200,
+	2400,
+	4800,
+	9600,
+	14400,
+	19200,
+	28800,
+	38400,
+	57600,
+	115200,
+	0,
+};
+
 void
 serial_setup(void)
 {
@@ -93,12 +109,31 @@ serial_peek(void)
 long
 serial_autobaud(void)
 {
+	unsigned long abaud, baud = 0;
+	int i;
+
 	Serial.begin(115200);
 
-	unsigned long baud = Serial.detectBaudrate(30000);
-	if (baud)
-		syslog.logf(LOG_INFO, "auto-detected baud rate of %lu", baud);
-	else {
+	abaud = Serial.detectBaudrate(30000);
+	if (abaud) {
+		for (i = 0; ; i++) {
+			if (ok_bauds[i] == 0)
+				break;
+			else if (ok_bauds[i] == abaud) {
+				baud = abaud;
+				break;
+			}
+		}
+
+		if (baud)
+			syslog.logf(LOG_INFO, "auto-detected baud rate of %lu",
+			    baud);
+		else {
+			syslog.logf(LOG_INFO, "auto-detected bogus baud %lu, "
+			    "using %d", abaud, settings->baud);
+			baud = settings->baud;
+		}
+	} else {
 		syslog.logf(LOG_INFO, "couldn't auto-detect baud rate, "
 		    "using %d", settings->baud);
 		baud = settings->baud;
