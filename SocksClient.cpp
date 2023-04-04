@@ -59,6 +59,8 @@ unsigned int tls_ports[] = {
 
 #define REMOTE_CLIENT		(tls() ? remote_client_tls : remote_client)
 
+static unsigned long last_buffer_check = 0;
+
 SocksClient::~SocksClient()
 {
 	local_client.stop();
@@ -395,7 +397,10 @@ SocksClient::proxy()
 
 	/* push out buffered data from remote to local client */
 	if (remote_buf_len) {
-		wrote = local_client.write(remote_buf, remote_buf_len);
+		len = remote_buf_len;
+		if (len > 64)
+			len = 64;
+		wrote = local_client.write(remote_buf, len);
 		if (wrote) {
 			memmove(remote_buf, remote_buf + wrote,
 			    remote_buf_len - wrote);
@@ -445,6 +450,14 @@ SocksClient::proxy()
 #endif
 		remote_buf_len += len;
 	}
+
+#ifdef SOCKS_TRACE
+	if (millis() - last_buffer_check > (3 * 1000)) {
+		syslog.logf(LOG_DEBUG, "[%d] local:%d remote:%d free:%d", slot,
+		    local_buf_len, remote_buf_len, ESP.getFreeHeap());
+		last_buffer_check = millis();
+	}
+#endif
 
 	if (!local_client.connected()) {
 #ifdef SOCKS_TRACE

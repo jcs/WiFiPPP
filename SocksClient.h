@@ -48,11 +48,11 @@ private:
 	void dump_buf(char *buf, size_t len);
 
 	/* data from local client */
-	unsigned char local_buf[64];
+	unsigned char local_buf[32];
 	size_t local_buf_len;
 
 	/* data from remote client */
-	unsigned char remote_buf[64];
+	unsigned char remote_buf[256];
 	size_t remote_buf_len;
 	unsigned char *remote_hostname;
 	ip4_addr_t remote_ip;
