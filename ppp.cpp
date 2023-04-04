@@ -27,6 +27,9 @@ static uint8_t ppp_buf[PPP_BUF_SIZE];
 static struct netif ppp_netif;
 static ppp_pcb *_ppp = NULL;
 
+#define PPP_TIMEOUT_SECS (60 * 10)
+long last_ppp_input = 0;
+
 u32_t ppp_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx);
 void ppp_status_cb(ppp_pcb* pcb, int err_code, void *ctx);
 void ppp_setup_nat(struct netif *nif);
@@ -55,6 +58,7 @@ ppp_start(void)
 	    ipaddr_ntoa(&s_addr));
 	serial_dcd(true);
 
+	last_ppp_input = millis();
 	ppp_listen(_ppp);
 
 #ifdef PPP_TRACE
@@ -105,9 +109,7 @@ void
 ppp_process(void)
 {
 	size_t bytes;
-#ifdef PPP_TRACE
 	long now = millis();
-#endif
 
 	if (state != STATE_PPP) {
 		syslog.logf(LOG_ERR, "%s but state is %d!", __func__, state);
@@ -115,9 +117,17 @@ ppp_process(void)
 	}
 
 	bytes = Serial.available();
-	if (!bytes)
+	if (!bytes) {
+		if (now - last_ppp_input > (1000 * PPP_TIMEOUT_SECS)) {
+			syslog.logf(LOG_WARNING, "no PPP input in %ld secs, "
+			    "hanging up", (now - last_ppp_input) / 1000);
+			ppp_close(_ppp, 0);
+			last_ppp_input = now;
+		}
 		return;
+	}
 
+	last_ppp_input = now;
 	if (bytes > PPP_BUF_SIZE)
 		bytes = PPP_BUF_SIZE;
 
@@ -126,7 +136,7 @@ ppp_process(void)
 
 #ifdef PPP_TRACE
 	long elap = millis();
-	syslog.logf(LOG_DEBUG, "processed %zu PPP bytes in %ldms", bytes,
+	syslog.logf(LOG_DEBUG, "processed %zu PPP input bytes in %ldms", bytes,
 	    elap - now);
 #endif
 }
