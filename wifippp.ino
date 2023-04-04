@@ -81,10 +81,21 @@ loop(void)
 
 		/* USR modem mode, ignore input not starting with at or a/ */
 		if (curcmdlen == 0 && (b != 'A' && b != 'a')) {
-			if (b > 127 && (now - last_autobaud > 2000)) {
-				serial_autobaud();
-				now = millis();
-				last_autobaud = now;
+#ifdef AT_TRACE
+			syslog.logf(LOG_DEBUG, "bogus char: 0x%x (%c)", b, b);
+#endif
+			if (b > 127) {
+				/*
+				 * Help modem auto-detection by just spitting
+				 * out OK in response to hopefully ATs received
+				 * during autobaud
+				 */
+				if (!settings->quiet) {
+					if (settings->verbal)
+						output("\r\nOK\r\n");
+					else
+						output("\r0\r");
+				}
 			}
 			return;
 		}
@@ -845,7 +856,12 @@ parse_cmd:
 
 		/* find optional single digit after &command, defaulting to 0 */
 		cmd_num = 0;
-		if (cmd[0] >= '0' && cmd[0] <= '9') {
+		if (cmd[0] == '?') {
+			cmd_num = '?';
+			len--;
+			cmd++;
+			lcmd++;
+		} else if (cmd[0] >= '0' && cmd[0] <= '9') {
 			if (cmd[1] >= '0' && cmd[1] <= '9')
 				/* nothing uses more than 1 digit */
 				goto error;
@@ -910,6 +926,9 @@ parse_cmd:
 		default:
 			goto error;
 		}
+		break;
+	case ' ':
+		/* skip spaces between commands */
 		break;
 	default:
 		goto error;
