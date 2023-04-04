@@ -27,8 +27,6 @@
 
 #include "wifippp.h"
 
-#define AUTOBAUD
-
 uint8_t state = STATE_AT;
 
 static char curcmd[64] = { 0 };
@@ -57,23 +55,23 @@ loop(void)
 
 	if (serial_dtr()) {
 		if (!last_dtr) {
-			/* new connection, re-autobaud */
+			if (settings->autobaud) {
 #ifdef AT_TRACE
-			syslog.logf(LOG_DEBUG, "new connection with DTR, "
-			    "doing auto-baud");
+				syslog.logf(LOG_DEBUG, "new connection with "
+				    "DTR, doing auto-baud");
 #endif
-			serial_autobaud();
-			now = millis();
-			last_autobaud = now;
+				serial_autobaud();
+				now = millis();
+				last_autobaud = now;
+			} else
+				serial_start(settings->baud);
 		}
 		last_dtr = now;
 	} else if (last_dtr && (now - last_dtr > 1750)) {
 		/* had DTR, dropped it for 1.75 secs, hangup */
 		hangup = true;
 		last_dtr = 0;
-#ifdef AT_TRACE
 		syslog.log(LOG_DEBUG, "dropped DTR, hanging up");
-#endif
 	}
 
 	switch (state) {
@@ -618,7 +616,17 @@ parse_cmd:
 		break;
 	case '$':
 		/* wifi232 commands, all consume the rest of the input string */
-		if (strncmp(lcmd, "baud=", 5) == 0) {
+		if (strcmp(lcmd, "autobaud=0") == 0) {
+			/* AT$AUTOBAUD=0: disable autobaud setting */
+			settings->autobaud = 0;
+		} else if (strcmp(lcmd, "autobaud=1") == 0) {
+			/* AT$AUTOBAUD=1: enable autobaud setting */
+			settings->autobaud = 1;
+		} else if (strcmp(lcmd, "autobaud?") == 0) {
+			/* AT$AUTOBAUD?: print autobaud setting */
+			outputf("\n%d\r\n", settings->autobaud);
+			did_nl = true;
+		} else if (strncmp(lcmd, "baud=", 5) == 0) {
 			uint32_t baud = 0;
 			int chars = 0;
 
@@ -636,7 +644,9 @@ parse_cmd:
 			case 2400:
 			case 4800:
 			case 9600:
+			case 14400:
 			case 19200:
+			case 28800:
 			case 38400:
 			case 57600:
 			case 115200:

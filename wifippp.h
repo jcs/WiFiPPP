@@ -65,6 +65,7 @@ struct __attribute((__packed__)) eeprom_data {
 	uint8_t quiet;
 	uint8_t verbal;
 	uint8_t pixel_brightness;
+	uint8_t autobaud;
 };
 
 enum {
