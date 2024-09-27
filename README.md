@@ -27,9 +27,6 @@ hardware, which includes:
 
 For the WiModem232, installation will replace the factory ROM image, though no
 hardware modification is needed.
-The device can be revered back to stock by just flashing the
-[factory ROM](http://www.cbmstuff.com/updates/wimodem232_V2_update.bin)
-again.
 
 This manual installation will only be required once, since future updates can
 use the built-in `AT$UPDATE` command to do an over-the-air update over WiFi.
